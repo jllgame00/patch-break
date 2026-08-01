@@ -1,6 +1,7 @@
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.EventSystems;
 
 public sealed class RuntimeConsoleUI : MonoBehaviour
 {
@@ -55,14 +56,28 @@ public sealed class RuntimeConsoleUI : MonoBehaviour
 
     private void HandleCompileClicked()
     {
+        Debug.Log("COMPILE BUTTON CLICKED");
+
+        codeInput.DeactivateInputField();
+
+        if (EventSystem.current != null)
+        {
+            EventSystem.current.SetSelectedGameObject(null);
+        }
+
         outputText.text = "> COMPILING...";
 
-        bool succeeded =
-            runtime.CompileAndRun(codeInput.text);
+        bool succeeded = runtime.CompileAndRun(
+            codeInput.text
+        );
 
         outputText.text =
+            $"> {runtime.LastCompileMessage}";
+
+        Debug.Log(
             succeeded
-                ? $"> {runtime.LastCompileMessage}"
-                : $"> {runtime.LastCompileMessage}";
+                ? "COMPILE SUCCEEDED"
+                : "COMPILE FAILED"
+        );
     }
 }

@@ -86,7 +86,22 @@ public sealed class HeroController : MonoBehaviour
 
     public bool TryDash(float direction)
     {
-        if (isDashing || Time.time < nextDashTime)
+        return StartDash(direction, ignoreCooldown: false);
+    }
+
+    public bool ForceDash(float direction)
+    {
+        return StartDash(direction, ignoreCooldown: true);
+    }
+
+    private bool StartDash(float direction, bool ignoreCooldown)
+    {
+        if (isDashing)
+        {
+            return false;
+        }
+
+        if (!ignoreCooldown && Time.time < nextDashTime)
         {
             return false;
         }

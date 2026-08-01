@@ -46,4 +46,27 @@ public sealed class HeroActionExecutor : MonoBehaviour
     {
         controller.StopMoving();
     }
+    
+    public bool ForceExecute(HeroActionType action)
+    {
+        switch (action)
+        {
+            case HeroActionType.DashBack:
+                controller.StopMoving();
+
+                return controller.ForceDash(
+                    -controller.FacingDirection
+                );
+
+            case HeroActionType.DashForward:
+                controller.StopMoving();
+
+                return controller.ForceDash(
+                    controller.FacingDirection
+                );
+
+            default:
+                return false;
+        }
+    }
 }
