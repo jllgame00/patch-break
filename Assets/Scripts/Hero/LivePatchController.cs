@@ -114,6 +114,22 @@ public sealed class LivePatchController : MonoBehaviour
         Time.timeScale = previousTimeScale;
         Time.fixedDeltaTime = previousFixedDeltaTime;
     }
+    
+    public void CancelForBattleEnd()
+    {
+        if (!IsPatching)
+            return;
+
+        RestoreTime();
+        IsPatching = false;
+
+        if (consoleUI != null)
+        {
+            consoleUI.ExitLivePatchMode();
+        }
+
+        Debug.Log("LIVE PATCH CANCELLED: BATTLE ENDED");
+    }
 
     private void OnDisable()
     {

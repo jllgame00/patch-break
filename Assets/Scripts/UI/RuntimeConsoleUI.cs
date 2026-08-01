@@ -198,4 +198,31 @@ public sealed class RuntimeConsoleUI : MonoBehaviour
 
         focusRoutine = null;
     }
+    
+    public void SetBattleEnded(bool victory)
+    {
+        StopInputFocus();
+
+        codeInput.DeactivateInputField();
+
+        if (EventSystem.current != null)
+        {
+            EventSystem.current.SetSelectedGameObject(null);
+        }
+
+        SetEditorEnabled(false);
+
+        SetButtonLabel(
+            victory
+                ? "BATTLE COMPLETE"
+                : "SYSTEM HALTED"
+        );
+
+        outputText.text =
+            victory
+                ? "> TARGET PROCESS TERMINATED\n" +
+                  "> BUILD STATUS: PASSED"
+                : "> HERO_RUNTIME TERMINATED\n" +
+                  "> BUILD STATUS: FAILED";
+    }
 }

@@ -1,11 +1,17 @@
+using System;
 using UnityEngine;
 
 public sealed class Health : MonoBehaviour
 {
-    [SerializeField] private int maxHealth = 100;
+    [SerializeField, Min(1)]
+    private int maxHealth = 100;
 
     public int CurrentHealth { get; private set; }
+    public int MaxHealth => maxHealth;
     public bool IsDead => CurrentHealth <= 0;
+
+    public event Action<Health> HealthChanged;
+    public event Action<Health> Died;
 
     private void Awake()
     {
@@ -17,17 +23,31 @@ public sealed class Health : MonoBehaviour
         if (IsDead || damage <= 0)
             return;
 
-        CurrentHealth = Mathf.Max(0, CurrentHealth - damage);
+        CurrentHealth = Mathf.Max(
+            0,
+            CurrentHealth - damage
+        );
 
-        Debug.Log($"{name} took {damage} damage. HP: {CurrentHealth}/{maxHealth}");
+        Debug.Log(
+            $"{name} took {damage} damage. " +
+            $"HP: {CurrentHealth}/{maxHealth}"
+        );
+
+        HealthChanged?.Invoke(this);
 
         if (IsDead)
+        {
             Die();
+        }
     }
 
     private void Die()
     {
         Debug.Log($"{name} died.");
+
+        // 비활성화 전에 이벤트를 보낸다.
+        Died?.Invoke(this);
+
         gameObject.SetActive(false);
     }
 }
