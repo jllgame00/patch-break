@@ -9,6 +9,7 @@ public sealed class HeroController : MonoBehaviour
     [Header("Dash")]
     [SerializeField] private float dashSpeed = 12f;
     [SerializeField] private float dashDuration = 0.15f;
+    [SerializeField] private float dashCooldown = 0.75f;
 
     private Rigidbody2D body;
 
@@ -17,6 +18,7 @@ public sealed class HeroController : MonoBehaviour
     private float dashDirection;
     private float dashTimer;
     private float originalScaleX;
+    private float nextDashTime;
 
     private bool isDashing;
 
@@ -84,14 +86,20 @@ public sealed class HeroController : MonoBehaviour
 
     public bool TryDash(float direction)
     {
-        if (isDashing)
+        if (isDashing || Time.time < nextDashTime)
+        {
             return false;
+        }
 
         if (Mathf.Approximately(direction, 0f))
+        {
             direction = facingDirection;
+        }
 
         dashDirection = Mathf.Sign(direction);
         dashTimer = dashDuration;
+        nextDashTime = Time.time + dashCooldown;
+
         isDashing = true;
         moveInput = 0f;
 

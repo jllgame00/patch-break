@@ -7,6 +7,7 @@ public sealed class ProgramRuntime : MonoBehaviour
     [Header("References")]
     [SerializeField] private HeroActionExecutor executor;
     [SerializeField] private Transform enemy;
+    [SerializeField] private EnemyCombatState enemyState;
 
     [Header("Runtime")]
     [SerializeField, Min(0.02f)]
@@ -36,6 +37,12 @@ public sealed class ProgramRuntime : MonoBehaviour
 
     private void Start()
     {
+        if (enemyState == null && enemy != null)
+        {
+            enemyState =
+                enemy.GetComponent<EnemyCombatState>();
+        }
+
         if (disableManualInputOnStart)
         {
             DisableManualInput();
@@ -153,19 +160,22 @@ public sealed class ProgramRuntime : MonoBehaviour
         foreach (BattleRule rule in compiledRules)
         {
             if (!CheckCondition(rule.Condition))
+            {
                 continue;
+            }
 
             bool executed = executor.TryExecute(
                 rule.Action,
                 enemy
             );
 
-            if (!executed)
-                continue;
+            if (executed)
+            {
+                Debug.Log($"EXECUTE: {rule.Source}");
+            }
 
-            Debug.Log($"EXECUTE: {rule.Source}");
-
-            // 위에서부터 검사하고 첫 번째로 실행된 규칙에서 종료.
+            // 첫 번째로 조건이 참인 규칙이
+            // 이번 평가 주기를 차지한다.
             return;
         }
     }
@@ -179,6 +189,10 @@ public sealed class ProgramRuntime : MonoBehaviour
 
             case ConditionType.EnemyFar:
                 return IsEnemyFar();
+
+            case ConditionType.EnemyAttacking:
+                return enemyState != null &&
+                       enemyState.IsAttacking;
 
             default:
                 return false;

@@ -1,5 +1,6 @@
 public enum ConditionType
 {
     EnemyNear,
-    EnemyFar
+    EnemyFar,
+    EnemyAttacking
 }
