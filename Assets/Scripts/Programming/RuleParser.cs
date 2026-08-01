@@ -75,6 +75,10 @@ public static class RuleParser
                 condition = ConditionType.EnemyNear;
                 return true;
 
+            case "enemy.far":
+                condition = ConditionType.EnemyFar;
+                return true;
+
             default:
                 condition = default;
                 return false;
@@ -87,6 +91,11 @@ public static class RuleParser
     {
         switch (token)
         {
+                        
+            case "approach":
+                action = HeroActionType.Approach;
+                return true;
+            
             case "slash":
                 action = HeroActionType.Slash;
                 return true;

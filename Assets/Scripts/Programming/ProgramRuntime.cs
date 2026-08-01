@@ -60,7 +60,10 @@ public sealed class ProgramRuntime : MonoBehaviour
             return;
 
         if (enemy == null || !enemy.gameObject.activeInHierarchy)
+        {
+            executor.StopMovement();
             return;
+        }
 
         evaluationTimer -= Time.deltaTime;
 
@@ -119,7 +122,10 @@ public sealed class ProgramRuntime : MonoBehaviour
             if (!CheckCondition(rule.Condition))
                 continue;
 
-            bool executed = executor.TryExecute(rule.Action);
+            bool executed = executor.TryExecute(
+                rule.Action,
+                enemy
+            );
 
             if (!executed)
                 continue;
@@ -141,6 +147,9 @@ public sealed class ProgramRuntime : MonoBehaviour
             case ConditionType.EnemyNear:
                 return IsEnemyNear();
 
+            case ConditionType.EnemyFar:
+                return IsEnemyFar();
+
             default:
                 return false;
         }
@@ -157,6 +166,19 @@ public sealed class ProgramRuntime : MonoBehaviour
         );
 
         return distance <= enemyNearDistance;
+    }
+    
+    private bool IsEnemyFar()
+    {
+        if (enemy == null)
+            return false;
+
+        float distance = Vector2.Distance(
+            transform.position,
+            enemy.position
+        );
+
+        return distance > enemyNearDistance;
     }
 
     private void DisableManualInput()

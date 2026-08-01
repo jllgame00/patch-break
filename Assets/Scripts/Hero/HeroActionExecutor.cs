@@ -13,22 +13,37 @@ public sealed class HeroActionExecutor : MonoBehaviour
         attack = GetComponent<HeroAttack>();
     }
 
-    public bool TryExecute(HeroActionType action)
+    public bool TryExecute(
+        HeroActionType action,
+        Transform target = null)
     {
         switch (action)
         {
+            case HeroActionType.Approach:
+                return controller.TryApproach(target);
+
             case HeroActionType.Slash:
+                controller.StopMoving();
                 return attack.TryAttack();
 
             case HeroActionType.DashForward:
-                return controller.TryDash(controller.FacingDirection);
+                return controller.TryDash(
+                    controller.FacingDirection
+                );
 
             case HeroActionType.DashBack:
-                return controller.TryDash(-controller.FacingDirection);
+                return controller.TryDash(
+                    -controller.FacingDirection
+                );
 
             case HeroActionType.None:
             default:
                 return false;
         }
+    }
+
+    public void StopMovement()
+    {
+        controller.StopMoving();
     }
 }

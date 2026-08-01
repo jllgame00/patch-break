@@ -53,6 +53,34 @@ public sealed class HeroController : MonoBehaviour
         facingDirection = Mathf.Sign(moveInput);
         UpdateFacingVisual();
     }
+    
+    public bool TryApproach(Transform target)
+    {
+        if (target == null || isDashing)
+            return false;
+
+        float horizontalDistance =
+            target.position.x - transform.position.x;
+
+        if (Mathf.Abs(horizontalDistance) <= 0.05f)
+        {
+            StopMoving();
+            return false;
+        }
+
+        SetMoveInput(Mathf.Sign(horizontalDistance));
+        return true;
+    }
+
+    public void StopMoving()
+    {
+        moveInput = 0f;
+
+        body.linearVelocity = new Vector2(
+            0f,
+            body.linearVelocity.y
+        );
+    }
 
     public bool TryDash(float direction)
     {
