@@ -5,46 +5,35 @@ public sealed class HeroController : MonoBehaviour
 {
     [Header("Movement")]
     [SerializeField] private float moveSpeed = 5f;
+
+    [Header("Dash")]
     [SerializeField] private float dashSpeed = 12f;
     [SerializeField] private float dashDuration = 0.15f;
 
     private Rigidbody2D body;
+
     private float moveInput;
-    private float dashTimer;
-    private bool isDashing;
     private float facingDirection = 1f;
+    private float dashDirection;
+    private float dashTimer;
+    private float originalScaleX;
+
+    private bool isDashing;
+
+    public float FacingDirection => facingDirection;
+    public bool IsDashing => isDashing;
 
     private void Awake()
     {
         body = GetComponent<Rigidbody2D>();
-    }
-
-    private void Update()
-    {
-        moveInput = Input.GetAxisRaw("Horizontal");
-
-        if (!Mathf.Approximately(moveInput, 0f))
-        {
-            facingDirection = Mathf.Sign(moveInput);
-        }
-
-        if (Input.GetKeyDown(KeyCode.K) && !isDashing)
-        {
-            StartDash();
-        }
+        originalScaleX = Mathf.Abs(transform.localScale.x);
     }
 
     private void FixedUpdate()
     {
         if (isDashing)
         {
-            dashTimer -= Time.fixedDeltaTime;
-
-            if (dashTimer <= 0f)
-            {
-                isDashing = false;
-            }
-
+            UpdateDash();
             return;
         }
 
@@ -54,14 +43,58 @@ public sealed class HeroController : MonoBehaviour
         );
     }
 
-    private void StartDash()
+    public void SetMoveInput(float input)
     {
-        isDashing = true;
+        moveInput = Mathf.Clamp(input, -1f, 1f);
+
+        if (Mathf.Approximately(moveInput, 0f))
+            return;
+
+        facingDirection = Mathf.Sign(moveInput);
+        UpdateFacingVisual();
+    }
+
+    public bool TryDash(float direction)
+    {
+        if (isDashing)
+            return false;
+
+        if (Mathf.Approximately(direction, 0f))
+            direction = facingDirection;
+
+        dashDirection = Mathf.Sign(direction);
         dashTimer = dashDuration;
+        isDashing = true;
+        moveInput = 0f;
 
         body.linearVelocity = new Vector2(
-            facingDirection * dashSpeed,
+            dashDirection * dashSpeed,
             body.linearVelocity.y
         );
+
+        return true;
+    }
+
+    private void UpdateDash()
+    {
+        dashTimer -= Time.fixedDeltaTime;
+
+        body.linearVelocity = new Vector2(
+            dashDirection * dashSpeed,
+            body.linearVelocity.y
+        );
+
+        if (dashTimer > 0f)
+            return;
+
+        isDashing = false;
+        body.linearVelocity = new Vector2(0f, body.linearVelocity.y);
+    }
+
+    private void UpdateFacingVisual()
+    {
+        Vector3 scale = transform.localScale;
+        scale.x = originalScaleX * facingDirection;
+        transform.localScale = scale;
     }
 }

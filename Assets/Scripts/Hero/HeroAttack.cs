@@ -11,18 +11,16 @@ public sealed class HeroAttack : MonoBehaviour
 
     private float nextAttackTime;
 
-    private void Update()
-    {
-        if (Input.GetKeyDown(KeyCode.J))
-        {
-            TryAttack();
-        }
-    }
-
-    private void TryAttack()
+    public bool TryAttack()
     {
         if (Time.time < nextAttackTime)
-            return;
+            return false;
+
+        if (attackPoint == null)
+        {
+            Debug.LogError("HeroAttack: AttackPoint is not assigned.");
+            return false;
+        }
 
         nextAttackTime = Time.time + attackCooldown;
 
@@ -39,6 +37,9 @@ public sealed class HeroAttack : MonoBehaviour
                 health.TakeDamage(attackDamage);
             }
         }
+
+        Debug.Log("Hero executed SLASH.");
+        return true;
     }
 
     private void OnDrawGizmosSelected()
