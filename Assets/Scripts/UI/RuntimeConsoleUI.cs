@@ -1,12 +1,14 @@
+using System.Collections;
 using TMPro;
 using UnityEngine;
-using UnityEngine.UI;
 using UnityEngine.EventSystems;
+using UnityEngine.UI;
 
 public sealed class RuntimeConsoleUI : MonoBehaviour
 {
     [Header("References")]
     [SerializeField] private ProgramRuntime runtime;
+    [SerializeField] private LivePatchController livePatchController;
     [SerializeField] private TMP_InputField codeInput;
     [SerializeField] private Button compileButton;
     [SerializeField] private TMP_Text outputText;
@@ -16,6 +18,9 @@ public sealed class RuntimeConsoleUI : MonoBehaviour
     private string defaultProgram =
         "if enemy.near => slash\n" +
         "if enemy.far => approach";
+
+    private TMP_Text compileButtonLabel;
+    private Coroutine focusRoutine;
 
     private void Awake()
     {
@@ -32,6 +37,9 @@ public sealed class RuntimeConsoleUI : MonoBehaviour
             return;
         }
 
+        compileButtonLabel =
+            compileButton.GetComponentInChildren<TMP_Text>();
+
         if (string.IsNullOrWhiteSpace(codeInput.text))
         {
             codeInput.text = defaultProgram;
@@ -41,7 +49,12 @@ public sealed class RuntimeConsoleUI : MonoBehaviour
             "> HERO_RUNTIME.EXE\n" +
             "> STATUS: WAITING FOR PROGRAM";
 
-        compileButton.onClick.AddListener(HandleCompileClicked);
+        SetEditorEnabled(true);
+        SetButtonLabel("COMPILE & RUN");
+
+        compileButton.onClick.AddListener(
+            HandleCompileClicked
+        );
     }
 
     private void OnDestroy()
@@ -54,9 +67,41 @@ public sealed class RuntimeConsoleUI : MonoBehaviour
         }
     }
 
+    public void EnterLivePatchMode()
+    {
+        SetEditorEnabled(true);
+        SetButtonLabel("APPLY PATCH");
+
+        outputText.text =
+            "> LIVE PATCH MODE\n" +
+            "> EDIT PROGRAM WHILE TIME IS SLOWED\n" +
+            "> APPLY PATCH TO RESUME";
+
+        StartInputFocus();
+    }
+
+    public void ExitLivePatchMode()
+    {
+        StopInputFocus();
+
+        codeInput.DeactivateInputField();
+
+        if (EventSystem.current != null)
+        {
+            EventSystem.current.SetSelectedGameObject(null);
+        }
+
+        SetEditorEnabled(false);
+        SetButtonLabel("PATCH APPLIED");
+    }
+
     private void HandleCompileClicked()
     {
-        Debug.Log("COMPILE BUTTON CLICKED");
+        bool isLivePatch =
+            livePatchController != null &&
+            livePatchController.IsPatching;
+
+        string sourceCode = codeInput.text;
 
         codeInput.DeactivateInputField();
 
@@ -67,17 +112,90 @@ public sealed class RuntimeConsoleUI : MonoBehaviour
 
         outputText.text = "> COMPILING...";
 
-        bool succeeded = runtime.CompileAndRun(
-            codeInput.text
-        );
+        bool succeeded =
+            runtime.CompileAndRun(sourceCode);
 
         outputText.text =
             $"> {runtime.LastCompileMessage}";
 
-        Debug.Log(
-            succeeded
-                ? "COMPILE SUCCEEDED"
-                : "COMPILE FAILED"
-        );
+        if (isLivePatch)
+        {
+            livePatchController.HandleCompileResult(
+                succeeded
+            );
+
+            if (!succeeded)
+            {
+                SetEditorEnabled(true);
+                SetButtonLabel("FIX & APPLY");
+                StartInputFocus();
+            }
+
+            return;
+        }
+
+        if (succeeded)
+        {
+            SetEditorEnabled(false);
+            SetButtonLabel("PROGRAM RUNNING");
+        }
+        else
+        {
+            SetEditorEnabled(true);
+            SetButtonLabel("COMPILE & RUN");
+            StartInputFocus();
+        }
+    }
+
+    private void SetEditorEnabled(bool enabledValue)
+    {
+        codeInput.interactable = enabledValue;
+        compileButton.interactable = enabledValue;
+    }
+
+    private void SetButtonLabel(string value)
+    {
+        if (compileButtonLabel != null)
+        {
+            compileButtonLabel.text = value;
+        }
+    }
+
+    private void StartInputFocus()
+    {
+        StopInputFocus();
+
+        focusRoutine =
+            StartCoroutine(FocusInputNextFrame());
+    }
+
+    private void StopInputFocus()
+    {
+        if (focusRoutine == null)
+            return;
+
+        StopCoroutine(focusRoutine);
+        focusRoutine = null;
+    }
+
+    private IEnumerator FocusInputNextFrame()
+    {
+        // Space 입력이 코드창에 그대로 찍히는 것을 막기 위해
+        // 다음 프레임에 입력창을 활성화한다.
+        yield return null;
+
+        codeInput.ActivateInputField();
+
+        if (EventSystem.current != null)
+        {
+            EventSystem.current.SetSelectedGameObject(
+                codeInput.gameObject
+            );
+        }
+
+        codeInput.caretPosition =
+            codeInput.text.Length;
+
+        focusRoutine = null;
     }
 }

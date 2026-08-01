@@ -73,13 +73,16 @@ public sealed class ProgramRuntime : MonoBehaviour
 
     public bool CompileAndRun(string sourceCode)
     {
-        StopProgram();
-        compiledRules.Clear();
+        bool preserveCurrentProgram =
+            IsRunning && compiledRules.Count > 0;
+
+        List<BattleRule> candidateRules = new();
 
         if (string.IsNullOrWhiteSpace(sourceCode))
         {
             return CompileFailed(
-                "COMPILE ERROR\nProgram is empty."
+                "COMPILE ERROR\nProgram is empty.",
+                preserveCurrentProgram
             );
         }
 
@@ -93,12 +96,14 @@ public sealed class ProgramRuntime : MonoBehaviour
         {
             string source = sourceLines[index].Trim();
 
-            // 빈 줄과 주석은 무시한다.
             if (string.IsNullOrWhiteSpace(source))
                 continue;
 
-            if (source.StartsWith("#") || source.StartsWith("//"))
+            if (source.StartsWith("#") ||
+                source.StartsWith("//"))
+            {
                 continue;
+            }
 
             if (!RuleParser.TryParse(
                     source,
@@ -108,19 +113,24 @@ public sealed class ProgramRuntime : MonoBehaviour
                 return CompileFailed(
                     $"COMPILE ERROR LINE {index + 1}\n" +
                     $"{error}\n" +
-                    $"> {source}"
+                    $"> {source}",
+                    preserveCurrentProgram
                 );
             }
 
-            compiledRules.Add(rule);
+            candidateRules.Add(rule);
         }
 
-        if (compiledRules.Count == 0)
+        if (candidateRules.Count == 0)
         {
             return CompileFailed(
-                "COMPILE ERROR\nNo executable rules found."
+                "COMPILE ERROR\nNo executable rules found.",
+                preserveCurrentProgram
             );
         }
+
+        compiledRules.Clear();
+        compiledRules.AddRange(candidateRules);
 
         evaluationTimer = 0f;
         IsRunning = true;
@@ -135,6 +145,22 @@ public sealed class ProgramRuntime : MonoBehaviour
         return true;
     }
 
+    private bool CompileFailed(
+        string message,
+        bool preserveCurrentProgram)
+    {
+        LastCompileMessage = message;
+
+        if (!preserveCurrentProgram)
+        {
+            StopProgram();
+        }
+
+        Debug.LogError(message);
+
+        return false;
+    }
+
     public void StopProgram()
     {
         IsRunning = false;
@@ -144,17 +170,7 @@ public sealed class ProgramRuntime : MonoBehaviour
             executor.StopMovement();
         }
     }
-
-    private bool CompileFailed(string message)
-    {
-        IsRunning = false;
-        LastCompileMessage = message;
-
-        Debug.LogError(message);
-
-        return false;
-    }
-
+    
     private void EvaluateProgram()
     {
         foreach (BattleRule rule in compiledRules)
