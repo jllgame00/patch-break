@@ -8,18 +8,12 @@ public sealed class ProgramRuntime : MonoBehaviour
     [SerializeField] private HeroActionExecutor executor;
     [SerializeField] private Transform enemy;
 
-    [Header("Program")]
-    [SerializeField] private List<string> sourceLines = new()
-    {
-        "if enemy.near => slash"
-    };
-
     [Header("Runtime")]
     [SerializeField, Min(0.02f)]
     private float evaluationInterval = 0.1f;
 
     [SerializeField, Min(0.1f)]
-    private float enemyNearDistance = 2.2f;
+    private float enemyNearDistance = 2.0f;
 
     [SerializeField]
     private bool disableManualInputOnStart = true;
@@ -27,7 +21,10 @@ public sealed class ProgramRuntime : MonoBehaviour
     private readonly List<BattleRule> compiledRules = new();
 
     private float evaluationTimer;
-    private bool compileSucceeded;
+
+    public bool IsRunning { get; private set; }
+    public string LastCompileMessage { get; private set; } =
+        "READY. Enter program and compile.";
 
     private void Awake()
     {
@@ -44,24 +41,17 @@ public sealed class ProgramRuntime : MonoBehaviour
             DisableManualInput();
         }
 
-        compileSucceeded = CompileProgram();
-
-        if (compileSucceeded)
-        {
-            Debug.Log(
-                $"BUILD SUCCESS: {compiledRules.Count} rule(s) compiled."
-            );
-        }
+        StopProgram();
     }
 
     private void Update()
     {
-        if (!compileSucceeded)
+        if (!IsRunning)
             return;
 
         if (enemy == null || !enemy.gameObject.activeInHierarchy)
         {
-            executor.StopMovement();
+            StopProgram();
             return;
         }
 
@@ -71,25 +61,36 @@ public sealed class ProgramRuntime : MonoBehaviour
             return;
 
         evaluationTimer = evaluationInterval;
-
         EvaluateProgram();
     }
 
-    private bool CompileProgram()
+    public bool CompileAndRun(string sourceCode)
     {
+        StopProgram();
         compiledRules.Clear();
 
-        if (sourceLines == null || sourceLines.Count == 0)
+        if (string.IsNullOrWhiteSpace(sourceCode))
         {
-            Debug.LogError("COMPILE ERROR: Program has no rules.");
-            return false;
+            return CompileFailed(
+                "COMPILE ERROR\nProgram is empty."
+            );
         }
 
-        for (int index = 0; index < sourceLines.Count; index++)
-        {
-            string source = sourceLines[index];
+        string normalizedSource = sourceCode
+            .Replace("\r\n", "\n")
+            .Replace('\r', '\n');
 
+        string[] sourceLines = normalizedSource.Split('\n');
+
+        for (int index = 0; index < sourceLines.Length; index++)
+        {
+            string source = sourceLines[index].Trim();
+
+            // 빈 줄과 주석은 무시한다.
             if (string.IsNullOrWhiteSpace(source))
+                continue;
+
+            if (source.StartsWith("#") || source.StartsWith("//"))
                 continue;
 
             if (!RuleParser.TryParse(
@@ -97,22 +98,54 @@ public sealed class ProgramRuntime : MonoBehaviour
                     out BattleRule rule,
                     out string error))
             {
-                Debug.LogError(
-                    $"COMPILE ERROR LINE {index + 1}: {error}\n" +
-                    $"SOURCE: {source}"
+                return CompileFailed(
+                    $"COMPILE ERROR LINE {index + 1}\n" +
+                    $"{error}\n" +
+                    $"> {source}"
                 );
-
-                return false;
             }
 
             compiledRules.Add(rule);
+        }
 
-            Debug.Log(
-                $"LINE {index + 1} VALID: {source}"
+        if (compiledRules.Count == 0)
+        {
+            return CompileFailed(
+                "COMPILE ERROR\nNo executable rules found."
             );
         }
 
-        return compiledRules.Count > 0;
+        evaluationTimer = 0f;
+        IsRunning = true;
+
+        LastCompileMessage =
+            $"BUILD SUCCESS\n" +
+            $"{compiledRules.Count} rule(s) compiled.\n" +
+            "Executing HERO_RUNTIME.EXE";
+
+        Debug.Log(LastCompileMessage);
+
+        return true;
+    }
+
+    public void StopProgram()
+    {
+        IsRunning = false;
+
+        if (executor != null)
+        {
+            executor.StopMovement();
+        }
+    }
+
+    private bool CompileFailed(string message)
+    {
+        IsRunning = false;
+        LastCompileMessage = message;
+
+        Debug.LogError(message);
+
+        return false;
     }
 
     private void EvaluateProgram()
@@ -130,12 +163,9 @@ public sealed class ProgramRuntime : MonoBehaviour
             if (!executed)
                 continue;
 
-            Debug.Log(
-                $"EXECUTE: {rule.Source}"
-            );
+            Debug.Log($"EXECUTE: {rule.Source}");
 
-            // 위에서 아래로 읽고,
-            // 실행 가능한 첫 번째 규칙만 실행한다.
+            // 위에서부터 검사하고 첫 번째로 실행된 규칙에서 종료.
             return;
         }
     }
@@ -160,25 +190,23 @@ public sealed class ProgramRuntime : MonoBehaviour
         if (enemy == null)
             return false;
 
-        float distance = Vector2.Distance(
-            transform.position,
-            enemy.position
-        );
-
-        return distance <= enemyNearDistance;
+        return GetEnemyDistance() <= enemyNearDistance;
     }
-    
+
     private bool IsEnemyFar()
     {
         if (enemy == null)
             return false;
 
-        float distance = Vector2.Distance(
+        return GetEnemyDistance() > enemyNearDistance;
+    }
+
+    private float GetEnemyDistance()
+    {
+        return Vector2.Distance(
             transform.position,
             enemy.position
         );
-
-        return distance > enemyNearDistance;
     }
 
     private void DisableManualInput()
