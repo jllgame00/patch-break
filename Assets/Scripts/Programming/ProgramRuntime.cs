@@ -209,6 +209,10 @@ public sealed class ProgramRuntime : MonoBehaviour
             case ConditionType.EnemyAttacking:
                 return enemyState != null &&
                        enemyState.IsAttacking;
+            
+            case ConditionType.EnemyGuarding:
+                return enemyState != null &&
+                       enemyState.IsGuarding;
 
             default:
                 return false;

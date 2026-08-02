@@ -83,6 +83,10 @@ public static class RuleParser
                 condition = ConditionType.EnemyAttacking;
                 return true;
 
+            case "enemy.guarding":
+                condition = ConditionType.EnemyGuarding;
+                return true;
+
             default:
                 condition = default;
                 return false;

@@ -53,7 +53,8 @@ public sealed class HeroAttack : MonoBehaviour
                 enemyLayer
             );
 
-        HashSet<Health> damagedTargets = new();
+        HashSet<Health> processedTargets = new();
+        int successfulHits = 0;
 
         foreach (Collider2D hit in hits)
         {
@@ -61,7 +62,7 @@ public sealed class HeroAttack : MonoBehaviour
                 hit.GetComponentInParent<Health>();
 
             if (health == null ||
-                !damagedTargets.Add(health))
+                !processedTargets.Add(health))
             {
                 continue;
             }
@@ -71,17 +72,33 @@ public sealed class HeroAttack : MonoBehaviour
                     attackPoint.position
                 );
 
+            EnemyCombatState combatState =
+                hit.GetComponentInParent<
+                    EnemyCombatState>();
+
+            if (combatState != null &&
+                combatState.IsGuarding)
+            {
+                SpawnHitEffect(hitPosition);
+
+                Debug.Log(
+                    "HERO SLASH BLOCKED BY GUARD"
+                );
+
+                continue;
+            }
+
             health.TakeDamage(damage);
             SpawnHitEffect(hitPosition);
+
+            successfulHits++;
         }
 
         Debug.Log(
             $"Hero executed SLASH. " +
-            $"Hits: {damagedTargets.Count}"
+            $"Hits: {successfulHits}"
         );
 
-        // 공격 자체는 실행됐으므로
-        // 맞히지 못해도 true다.
         return true;
     }
 

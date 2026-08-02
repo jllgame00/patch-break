@@ -18,6 +18,10 @@ public sealed class BattleManager : MonoBehaviour
     [SerializeField] private TMP_Text resultTitle;
     [SerializeField] private TMP_Text resultBody;
     [SerializeField] private Button restartButton;
+    
+    [Header("Encounter")]
+    [SerializeField]
+    private string enemyDisplayName = "TARGET_PROCESS";
 
     private bool battleEnded;
     private float defaultFixedDeltaTime;
@@ -124,7 +128,7 @@ public sealed class BattleManager : MonoBehaviour
             resultBody.text =
                 victory
                     ? "TARGET PROCESS TERMINATED\n" +
-                      "GOLEM ENCOUNTER CLEARED"
+                      $"{enemyDisplayName} CLEARED"
                     : "HERO_RUNTIME.EXE HAS STOPPED\n" +
                       "REVISE YOUR PROGRAM";
         }

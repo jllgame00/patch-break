@@ -10,6 +10,7 @@ public sealed class HeroController : MonoBehaviour
     [SerializeField] private float dashSpeed = 12f;
     [SerializeField] private float dashDuration = 0.15f;
     [SerializeField] private float dashCooldown = 0.75f;
+    [SerializeField, Min(0f)] private float dashInvulnerabilityDuration = 0.65f;
 
     private Rigidbody2D body;
 
@@ -19,11 +20,13 @@ public sealed class HeroController : MonoBehaviour
     private float dashTimer;
     private float originalScaleX;
     private float nextDashTime;
+    private float dashInvulnerableUntil;
 
     private bool isDashing;
 
     public float FacingDirection => facingDirection;
     public bool IsDashing => isDashing;
+    public bool IsDashInvulnerable => Time.time < dashInvulnerableUntil;
 
     private void Awake()
     {
@@ -115,6 +118,11 @@ public sealed class HeroController : MonoBehaviour
         dashTimer = dashDuration;
         nextDashTime = Time.time + dashCooldown;
 
+        dashInvulnerableUntil = Mathf.Max(
+            dashInvulnerableUntil,
+            Time.time + dashInvulnerabilityDuration
+        );
+        
         isDashing = true;
         moveInput = 0f;
 
