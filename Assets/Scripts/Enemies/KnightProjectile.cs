@@ -23,52 +23,17 @@ public sealed class KnightProjectile : MonoBehaviour
     private GameObject hitEffectPrefab;
 
     private Rigidbody2D body;
-    private bool preDodged;
-
     private float horizontalDirection;
-    private float missDespawnX;
-    private bool hasMissDespawnPoint;
 
     private void Awake()
     {
         body = GetComponent<Rigidbody2D>();
-    }
-    
-    private void Update()
-    {
-        if (!preDodged ||
-            !hasMissDespawnPoint)
-        {
-            return;
-        }
-
-        bool reachedMissPoint =
-            horizontalDirection > 0f
-                ? transform.position.x >=
-                  missDespawnX
-                : transform.position.x <=
-                  missDespawnX;
-
-        if (!reachedMissPoint)
-        {
-            return;
-        }
-
-        Debug.Log(
-            "KNIGHT PROJECTILE EVADED"
-        );
-
-        Destroy(gameObject);
     }
 
     public void Launch(
         Vector2 direction,
         HeroController targetHero)
     {
-        preDodged =
-            targetHero != null &&
-            targetHero.IsDashInvulnerable;
-
         horizontalDirection =
             Mathf.Sign(direction.x);
 
@@ -79,22 +44,11 @@ public sealed class KnightProjectile : MonoBehaviour
             horizontalDirection = 1f;
         }
 
-        // 검기는 항상 수평으로 발사한다.
         body.linearVelocity =
             new Vector2(
                 horizontalDirection * speed,
                 0f
             );
-
-        if (preDodged && targetHero != null)
-        {
-            // 발사 순간 Hero가 있던 위치를
-            // 검기의 빗나감 종료 지점으로 저장한다.
-            missDespawnX =
-                targetHero.transform.position.x;
-
-            hasMissDespawnPoint = true;
-        }
 
         Destroy(gameObject, lifetime);
     }
@@ -107,9 +61,27 @@ public sealed class KnightProjectile : MonoBehaviour
         HeroController hero =
             other.GetComponentInParent<HeroController>();
 
-        if (preDodged ||
-            (hero != null &&
-             hero.IsDashInvulnerable))
+        bool heroIsDashing =
+            hero != null && hero.IsDashing;
+
+        bool heroIsInvulnerable =
+            hero != null && hero.IsInvulnerable;
+
+        if (hero != null &&
+            hero.IsVerboseDashLogging)
+        {
+            Debug.Log(
+                "KNIGHT PROJECTILE CONTACT\n" +
+                "time=" + Time.time.ToString("F3") + "\n" +
+                "heroIsDashing=" + heroIsDashing + "\n" +
+                "heroIsInvulnerable=" +
+                heroIsInvulnerable + "\n" +
+                "result=" +
+                (heroIsInvulnerable ? "EVADED" : "HIT")
+            );
+        }
+
+        if (heroIsInvulnerable)
         {
             Debug.Log(
                 "KNIGHT PROJECTILE EVADED"

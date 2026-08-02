@@ -11,6 +11,8 @@ public sealed class HeroActionExecutor : MonoBehaviour
     private HeroController controller;
     private HeroAttack attack;
 
+    public bool VerboseDashLogging => verboseDashLogging;
+
     private void Awake()
     {
         controller = GetComponent<HeroController>();
@@ -30,7 +32,22 @@ public sealed class HeroActionExecutor : MonoBehaviour
         switch (action)
         {
             case HeroActionType.Approach:
-                return controller.TryApproach(target);
+                bool approachStarted =
+                    controller.TryApproach(target);
+
+                if (approachStarted &&
+                    verboseDashLogging)
+                {
+                    Debug.Log(
+                        "HERO ACTION: APPROACH START\n" +
+                        $"time={Time.time:F3}\n" +
+                        $"isDashing={controller.IsDashing}\n" +
+                        "isInvulnerable=" +
+                        controller.IsInvulnerable
+                    );
+                }
+
+                return approachStarted;
 
             case HeroActionType.Slash:
                 controller.StopMoving();
@@ -58,7 +75,7 @@ public sealed class HeroActionExecutor : MonoBehaviour
 
     public void StopMovement()
     {
-        controller.ClearGuardRecoilAndStagger();
+        controller.StopAllMovement();
     }
     
     public bool ForceExecute(

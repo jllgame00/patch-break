@@ -145,6 +145,7 @@ public sealed class GolemController : MonoBehaviour
         );
 
         HashSet<Health> damagedTargets = new();
+        int successfulHits = 0;
 
         foreach (Collider2D hit in hits)
         {
@@ -156,6 +157,17 @@ public sealed class GolemController : MonoBehaviour
                 continue;
             }
 
+            HeroController hero =
+                hit.GetComponentInParent<
+                    HeroController>();
+
+            if (hero != null &&
+                hero.IsInvulnerable)
+            {
+                Debug.Log("GOLEM: ATTACK EVADED");
+                continue;
+            }
+
             Vector2 hitPosition =
                 hit.ClosestPoint(
                     attackPoint.position
@@ -163,10 +175,11 @@ public sealed class GolemController : MonoBehaviour
 
             health.TakeDamage(attackDamage);
             SpawnHitEffect(hitPosition);
+            successfulHits++;
         }
 
         Debug.Log(
-            damagedTargets.Count > 0
+            successfulHits > 0
                 ? "GOLEM: ATTACK HIT"
                 : "GOLEM: ATTACK MISSED"
         );

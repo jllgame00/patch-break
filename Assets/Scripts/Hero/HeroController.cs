@@ -10,7 +10,8 @@ public sealed class HeroController : MonoBehaviour
     [SerializeField] private float dashSpeed = 12f;
     [SerializeField] private float dashDuration = 0.15f;
     [SerializeField] private float dashCooldown = 0.75f;
-    [SerializeField, Min(0f)] private float dashInvulnerabilityDuration = 0.65f;
+    [SerializeField, Range(0f, 0.05f)]
+    private float postDashInvulnerabilityGrace;
 
     private Rigidbody2D body;
 
@@ -20,7 +21,7 @@ public sealed class HeroController : MonoBehaviour
     private float dashTimer;
     private float originalScaleX;
     private float nextDashTime;
-    private float dashInvulnerableUntil;
+    private float invulnerableUntil;
     private float recoilDirection;
     private float recoilSpeed;
     private float recoilTimer;
@@ -28,17 +29,38 @@ public sealed class HeroController : MonoBehaviour
 
     private bool isDashing;
     private bool isRecoiling;
+    private bool waitingForInvulnerabilityEnd;
 
     public float FacingDirection => facingDirection;
     public bool IsDashing => isDashing;
+    public bool IsInvulnerable =>
+        isDashing || Time.time < invulnerableUntil;
     public bool IsStaggered =>
         isRecoiling || Time.time < staggerUntil;
-    public bool IsDashInvulnerable => Time.time < dashInvulnerableUntil;
+    public bool IsVerboseDashLogging =>
+        actionExecutor != null &&
+        actionExecutor.VerboseDashLogging;
+
+    private HeroActionExecutor actionExecutor;
 
     private void Awake()
     {
         body = GetComponent<Rigidbody2D>();
+        actionExecutor = GetComponent<HeroActionExecutor>();
         originalScaleX = Mathf.Abs(transform.localScale.x);
+    }
+
+    private void Update()
+    {
+        if (!waitingForInvulnerabilityEnd ||
+            Time.time < invulnerableUntil)
+        {
+            return;
+        }
+
+        waitingForInvulnerabilityEnd = false;
+        invulnerableUntil = 0f;
+        LogInvulnerabilityEnd();
     }
 
     private void FixedUpdate()
@@ -150,8 +172,7 @@ public sealed class HeroController : MonoBehaviour
         float recoilDuration,
         float staggerDuration)
     {
-        isDashing = false;
-        dashTimer = 0f;
+        CancelDashState();
         StopMoving();
 
         recoilDirection = GetDirectionAwayFrom(source);
@@ -190,6 +211,12 @@ public sealed class HeroController : MonoBehaviour
         StopMoving();
     }
 
+    public void StopAllMovement()
+    {
+        CancelDashState();
+        ClearGuardRecoilAndStagger();
+    }
+
     private bool StartDash(float direction, bool ignoreCooldown)
     {
         if (isDashing || IsStaggered)
@@ -210,12 +237,8 @@ public sealed class HeroController : MonoBehaviour
         dashDirection = Mathf.Sign(direction);
         dashTimer = dashDuration;
         nextDashTime = Time.time + dashCooldown;
-
-        dashInvulnerableUntil = Mathf.Max(
-            dashInvulnerableUntil,
-            Time.time + dashInvulnerabilityDuration
-        );
-        
+        invulnerableUntil = 0f;
+        waitingForInvulnerabilityEnd = false;
         isDashing = true;
         moveInput = 0f;
 
@@ -223,6 +246,8 @@ public sealed class HeroController : MonoBehaviour
             dashDirection * dashSpeed,
             body.linearVelocity.y
         );
+
+        LogDashStart();
 
         return true;
     }
@@ -240,7 +265,24 @@ public sealed class HeroController : MonoBehaviour
             return;
 
         isDashing = false;
-        body.linearVelocity = new Vector2(0f, body.linearVelocity.y);
+        body.linearVelocity = new Vector2(
+            0f,
+            body.linearVelocity.y
+        );
+
+        invulnerableUntil =
+            Time.time + postDashInvulnerabilityGrace;
+
+        waitingForInvulnerabilityEnd =
+            postDashInvulnerabilityGrace > 0f;
+
+        LogDashMovementEnd();
+
+        if (!waitingForInvulnerabilityEnd)
+        {
+            invulnerableUntil = 0f;
+            LogInvulnerabilityEnd();
+        }
     }
 
     private void UpdateGuardRecoil()
@@ -279,6 +321,55 @@ public sealed class HeroController : MonoBehaviour
         return -facingDirection;
     }
 
+    private void CancelDashState()
+    {
+        isDashing = false;
+        dashTimer = 0f;
+        invulnerableUntil = 0f;
+        waitingForInvulnerabilityEnd = false;
+    }
+
+    private void LogDashStart()
+    {
+        if (!IsVerboseDashLogging)
+            return;
+
+        Debug.Log(
+            "HERO DASH: START\n" +
+            $"time={Time.time:F3}\n" +
+            $"direction={dashDirection:F0}\n" +
+            $"isDashing={isDashing}\n" +
+            $"isInvulnerable={IsInvulnerable}"
+        );
+    }
+
+    private void LogDashMovementEnd()
+    {
+        if (!IsVerboseDashLogging)
+            return;
+
+        Debug.Log(
+            "HERO DASH: MOVEMENT END\n" +
+            $"time={Time.time:F3}\n" +
+            $"velocityX={body.linearVelocity.x:F2}\n" +
+            $"isDashing={isDashing}\n" +
+            $"isInvulnerable={IsInvulnerable}"
+        );
+    }
+
+    private void LogInvulnerabilityEnd()
+    {
+        if (!IsVerboseDashLogging)
+            return;
+
+        Debug.Log(
+            "HERO DASH: INVULNERABILITY END\n" +
+            $"time={Time.time:F3}\n" +
+            $"isDashing={isDashing}\n" +
+            $"isInvulnerable={IsInvulnerable}"
+        );
+    }
+
     private void UpdateFacingVisual()
     {
         Vector3 scale = transform.localScale;
@@ -288,6 +379,6 @@ public sealed class HeroController : MonoBehaviour
 
     private void OnDisable()
     {
-        ClearGuardRecoilAndStagger();
+        StopAllMovement();
     }
 }
