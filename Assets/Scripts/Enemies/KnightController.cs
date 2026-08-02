@@ -68,6 +68,12 @@ public sealed class KnightController : MonoBehaviour
     [SerializeField, Min(0.1f)]
     private float guardDuration = 0.9f;
 
+    [SerializeField]
+    private GameObject guardIndicator;
+
+    [SerializeField, Min(0f)]
+    private float guardIndicatorOffsetX = 0.75f;
+
     [Header("Timing")]
     [SerializeField, Min(0f)]
     private float recoveryDuration = 0.3f;
@@ -149,7 +155,16 @@ public sealed class KnightController : MonoBehaviour
             );
         }
 
+        if (guardIndicator == null)
+        {
+            Debug.LogWarning(
+                "Knight guard indicator reference is missing.",
+                this
+            );
+        }
+
         HideAllTelegraphs();
+        HideGuardIndicator();
     }
 
     private void Update()
@@ -237,6 +252,7 @@ public sealed class KnightController : MonoBehaviour
     {
         combatState.SetAttacking(true);
         SetColor(attackColor);
+        HideGuardIndicator();
         HideAllTelegraphs();
         ShowMeleeTelegraph();
 
@@ -278,6 +294,7 @@ public sealed class KnightController : MonoBehaviour
 
         combatState.SetAttacking(true);
         SetColor(attackColor);
+        HideGuardIndicator();
         HideAllTelegraphs();
         ShowProjectileTelegraph();
 
@@ -313,6 +330,7 @@ public sealed class KnightController : MonoBehaviour
         combatState.SetGuarding(true);
         SetColor(guardColor);
         HideAllTelegraphs();
+        ShowGuardIndicator();
 
         Debug.Log("KNIGHT: GUARDING");
 
@@ -320,6 +338,7 @@ public sealed class KnightController : MonoBehaviour
             guardDuration
         );
 
+        HideGuardIndicator();
         combatState.SetGuarding(false);
         RestoreNormalColor();
 
@@ -670,9 +689,49 @@ public sealed class KnightController : MonoBehaviour
         }
     }
 
+    public Color GetCurrentStateColor()
+    {
+        if (combatState != null &&
+            combatState.IsGuarding)
+        {
+            return guardColor;
+        }
+
+        if (combatState != null &&
+            combatState.IsAttacking)
+        {
+            return attackColor;
+        }
+
+        return normalColor;
+    }
+
     private void RestoreNormalColor()
     {
         SetColor(normalColor);
+    }
+
+    private void ShowGuardIndicator()
+    {
+        if (guardIndicator == null)
+            return;
+
+        Vector3 localPosition =
+            guardIndicator.transform.localPosition;
+
+        localPosition.x = guardIndicatorOffsetX;
+        guardIndicator.transform.localPosition =
+            localPosition;
+
+        guardIndicator.SetActive(true);
+    }
+
+    private void HideGuardIndicator()
+    {
+        if (guardIndicator != null)
+        {
+            guardIndicator.SetActive(false);
+        }
     }
 
     private void OnDisable()
@@ -717,6 +776,7 @@ public sealed class KnightController : MonoBehaviour
         }
 
         HideAllTelegraphs();
+        HideGuardIndicator();
         RestoreNormalColor();
     }
 }

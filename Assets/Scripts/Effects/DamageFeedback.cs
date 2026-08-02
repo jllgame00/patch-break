@@ -39,6 +39,7 @@ public sealed class DamageFeedback : MonoBehaviour
 
     private Color normalColor = Color.white;
     private Coroutine flashRoutine;
+    private KnightController knightController;
 
     private void Awake()
     {
@@ -57,6 +58,9 @@ public sealed class DamageFeedback : MonoBehaviour
         {
             normalColor = targetRenderer.color;
         }
+
+        knightController =
+            GetComponent<KnightController>();
     }
 
     private void OnEnable()
@@ -127,6 +131,13 @@ public sealed class DamageFeedback : MonoBehaviour
     {
         if (targetRenderer == null)
             return;
+
+        if (knightController != null)
+        {
+            targetRenderer.color =
+                knightController.GetCurrentStateColor();
+            return;
+        }
 
         bool isEnemyAttacking =
             enemyCombatState != null &&
