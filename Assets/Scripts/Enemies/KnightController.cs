@@ -36,6 +36,17 @@ public sealed class KnightController : MonoBehaviour
     [SerializeField]
     private ProgramRuntime runtime;
 
+    [Header("Telegraphs")]
+    [SerializeField]
+    private GameObject meleeTelegraph;
+
+    [SerializeField]
+    private GameObject projectileTelegraph;
+
+    [Header("Diagnostics")]
+    [SerializeField]
+    private bool verboseTelegraphLogging;
+
     [Header("Melee Attack")]
     [SerializeField, Min(0.1f)]
     private float meleeTriggerDistance = 2.2f;
@@ -64,6 +75,13 @@ public sealed class KnightController : MonoBehaviour
     [SerializeField, Min(0f)]
     private float actionCooldown = 0.7f;
 
+    [Header("Forced Ranged")]
+    [SerializeField, Min(0f)]
+    private float forcedRangedBackstepDistance = 1.8f;
+
+    [SerializeField, Min(0.01f)]
+    private float forcedRangedBackstepDuration = 0.18f;
+
     [Header("Telegraph Colors")]
     [SerializeField]
     private Color attackColor =
@@ -74,10 +92,13 @@ public sealed class KnightController : MonoBehaviour
         new(0.15f, 0.55f, 1f, 1f);
 
     private Coroutine actionRoutine;
+    private Rigidbody2D body;
     private float nextActionTime;
     private float originalScaleX;
     private Color normalColor = Color.white;
     private int closeActionCount;
+    private bool forceProjectileNext;
+    private bool isRangedAction;
 
     private void Awake()
     {
@@ -92,6 +113,8 @@ public sealed class KnightController : MonoBehaviour
             spriteRenderer =
                 GetComponent<SpriteRenderer>();
         }
+
+        body = GetComponent<Rigidbody2D>();
 
         if (targetHero == null &&
             target != null)
@@ -109,25 +132,46 @@ public sealed class KnightController : MonoBehaviour
             normalColor =
                 spriteRenderer.color;
         }
+
+        if (meleeTelegraph == null)
+        {
+            Debug.LogWarning(
+                "Knight melee telegraph reference is missing.",
+                this
+            );
+        }
+
+        if (projectileTelegraph == null)
+        {
+            Debug.LogWarning(
+                "Knight projectile telegraph reference is missing.",
+                this
+            );
+        }
+
+        HideAllTelegraphs();
     }
 
     private void Update()
     {
         if (runtime == null || !runtime.IsRunning)
         {
-            CancelCurrentAction();
+            CancelCurrentAction("PROGRAM STOPPED");
             return;
         }
 
         if (target == null ||
             !target.gameObject.activeInHierarchy)
         {
-            CancelCurrentAction();
+            CancelCurrentAction("TARGET INACTIVE");
             return;
         }
 
         if (actionRoutine != null)
+        {
+            UpdateProjectileTelegraph();
             return;
+        }
 
         FaceTarget();
 
@@ -140,12 +184,34 @@ public sealed class KnightController : MonoBehaviour
                 target.position
             );
 
+        if (forceProjectileNext)
+        {
+            LogActionSelection(
+                distance,
+                "FORCED PROJECTILE"
+            );
+
+            actionRoutine =
+                StartCoroutine(
+                    RangedAttackRoutine(forced: true)
+                );
+
+            return;
+        }
+
         if (distance <= meleeTriggerDistance)
         {
             closeActionCount++;
 
             bool shouldGuard =
                 closeActionCount % 3 == 0;
+
+            LogActionSelection(
+                distance,
+                shouldGuard
+                    ? "GUARD"
+                    : "MELEE"
+            );
 
             actionRoutine = shouldGuard
                 ? StartCoroutine(GuardRoutine())
@@ -156,9 +222,14 @@ public sealed class KnightController : MonoBehaviour
             return;
         }
 
+        LogActionSelection(
+            distance,
+            "PROJECTILE"
+        );
+
         actionRoutine =
             StartCoroutine(
-                RangedAttackRoutine()
+                RangedAttackRoutine(forced: false)
             );
     }
 
@@ -166,6 +237,8 @@ public sealed class KnightController : MonoBehaviour
     {
         combatState.SetAttacking(true);
         SetColor(attackColor);
+        HideAllTelegraphs();
+        ShowMeleeTelegraph();
 
         Debug.Log(
             "KNIGHT: MELEE ATTACK WINDUP"
@@ -176,6 +249,7 @@ public sealed class KnightController : MonoBehaviour
         );
 
         PerformMeleeAttack();
+        HideAllTelegraphs();
 
         combatState.SetAttacking(false);
         RestoreNormalColor();
@@ -187,19 +261,40 @@ public sealed class KnightController : MonoBehaviour
         FinishAction();
     }
 
-    private IEnumerator RangedAttackRoutine()
+    private IEnumerator RangedAttackRoutine(bool forced)
     {
+        isRangedAction = true;
+
+        LogRangedEvent(
+            $"ENTER forced={forced.ToString().ToUpperInvariant()}"
+        );
+
+        if (forced)
+        {
+            yield return ForcedRangedBackstepRoutine();
+        }
+
+        forceProjectileNext = false;
+
         combatState.SetAttacking(true);
         SetColor(attackColor);
+        HideAllTelegraphs();
+        ShowProjectileTelegraph();
 
         Debug.Log(
             "KNIGHT: PROJECTILE WINDUP"
         );
 
+        LogRangedEvent("WINDUP START");
+
         yield return new WaitForSeconds(
             rangedWindup
         );
 
+        LogRangedEvent("WINDUP COMPLETE");
+        HideAllTelegraphs();
+
+        LogRangedEvent("SPAWN PROJECTILE");
         SpawnProjectile();
 
         combatState.SetAttacking(false);
@@ -210,12 +305,14 @@ public sealed class KnightController : MonoBehaviour
         );
 
         FinishAction();
+        LogRangedEvent("EXIT");
     }
 
     private IEnumerator GuardRoutine()
     {
         combatState.SetGuarding(true);
         SetColor(guardColor);
+        HideAllTelegraphs();
 
         Debug.Log("KNIGHT: GUARDING");
 
@@ -225,6 +322,8 @@ public sealed class KnightController : MonoBehaviour
 
         combatState.SetGuarding(false);
         RestoreNormalColor();
+
+        forceProjectileNext = true;
 
         yield return new WaitForSeconds(
             recoveryDuration
@@ -328,7 +427,216 @@ public sealed class KnightController : MonoBehaviour
         nextActionTime =
             Time.time + actionCooldown;
 
+        isRangedAction = false;
         actionRoutine = null;
+    }
+
+    private IEnumerator ForcedRangedBackstepRoutine()
+    {
+        if (body == null ||
+            target == null ||
+            forcedRangedBackstepDistance <= 0f)
+        {
+            yield break;
+        }
+
+        float direction =
+            GetBackstepDirection();
+
+        float speed =
+            forcedRangedBackstepDistance /
+            forcedRangedBackstepDuration;
+
+        body.linearVelocity =
+            new Vector2(
+                direction * speed,
+                body.linearVelocity.y
+            );
+
+        yield return new WaitForSeconds(
+            forcedRangedBackstepDuration
+        );
+
+        StopForcedRangedBackstep();
+    }
+
+    private float GetBackstepDirection()
+    {
+        float direction =
+            transform.position.x -
+            target.position.x;
+
+        if (!Mathf.Approximately(direction, 0f))
+            return Mathf.Sign(direction);
+
+        return -Mathf.Sign(transform.localScale.x);
+    }
+
+    private void StopForcedRangedBackstep()
+    {
+        if (body == null)
+            return;
+
+        body.linearVelocity =
+            new Vector2(0f, body.linearVelocity.y);
+    }
+
+    private void ShowMeleeTelegraph()
+    {
+        if (meleeTelegraph == null)
+            return;
+
+        float diameter = meleeRadius * 2f;
+
+        meleeTelegraph.transform.localScale =
+            new Vector3(
+                diameter,
+                diameter,
+                1f
+            );
+
+        meleeTelegraph.SetActive(true);
+
+        if (verboseTelegraphLogging)
+        {
+            Debug.Log("KNIGHT TELEGRAPH: MELEE SHOW");
+        }
+    }
+
+    private void ShowProjectileTelegraph()
+    {
+        if (projectileTelegraph == null ||
+            projectileSpawnPoint == null)
+        {
+            return;
+        }
+
+        projectileTelegraph.SetActive(true);
+        UpdateProjectileTelegraph();
+
+        if (verboseTelegraphLogging)
+        {
+            float direction =
+                GetProjectileHorizontalDirection();
+
+            Debug.Log(
+                "KNIGHT TELEGRAPH: " +
+                $"PROJECTILE SHOW direction={direction:F0}"
+            );
+        }
+    }
+
+    private void UpdateProjectileTelegraph()
+    {
+        if (projectileTelegraph == null ||
+            !projectileTelegraph.activeSelf ||
+            projectileSpawnPoint == null)
+        {
+            return;
+        }
+
+        float direction =
+            GetProjectileHorizontalDirection();
+
+        Vector3 position =
+            projectileSpawnPoint.position;
+
+        projectileTelegraph.transform.position =
+            position;
+
+        Transform parent =
+            projectileTelegraph.transform.parent;
+
+        float parentDirection =
+            parent == null ||
+            Mathf.Approximately(parent.lossyScale.x, 0f)
+                ? 1f
+                : Mathf.Sign(parent.lossyScale.x);
+
+        Vector3 scale =
+            projectileTelegraph.transform.localScale;
+
+        scale.x =
+            Mathf.Abs(scale.x) *
+            direction *
+            parentDirection;
+
+        projectileTelegraph.transform.localScale =
+            scale;
+    }
+
+    private float GetProjectileHorizontalDirection()
+    {
+        float direction =
+            target == null ||
+            projectileSpawnPoint == null
+                ? 1f
+                : target.position.x -
+                  projectileSpawnPoint.position.x;
+
+        if (Mathf.Approximately(direction, 0f))
+            return 1f;
+
+        return Mathf.Sign(direction);
+    }
+
+    private void HideAllTelegraphs()
+    {
+        bool meleeWasActive =
+            meleeTelegraph != null &&
+            meleeTelegraph.activeSelf;
+
+        bool projectileWasActive =
+            projectileTelegraph != null &&
+            projectileTelegraph.activeSelf;
+
+        if (meleeTelegraph != null)
+        {
+            meleeTelegraph.SetActive(false);
+        }
+
+        if (projectileTelegraph != null)
+        {
+            projectileTelegraph.SetActive(false);
+        }
+
+        if (!verboseTelegraphLogging)
+            return;
+
+        if (meleeWasActive)
+        {
+            Debug.Log("KNIGHT TELEGRAPH: MELEE HIDE");
+        }
+
+        if (projectileWasActive)
+        {
+            Debug.Log("KNIGHT TELEGRAPH: PROJECTILE HIDE");
+        }
+    }
+
+    private void LogActionSelection(
+        float distance,
+        string action)
+    {
+        if (!verboseTelegraphLogging)
+            return;
+
+        Debug.Log(
+            "KNIGHT ACTION SELECT " +
+            $"distance={distance:F2} " +
+            $"threshold={meleeTriggerDistance:F2} " +
+            $"action={action} " +
+            "forceProjectileNext=" +
+            (forceProjectileNext ? "TRUE" : "FALSE")
+        );
+    }
+
+    private void LogRangedEvent(string message)
+    {
+        if (!verboseTelegraphLogging)
+            return;
+
+        Debug.Log($"KNIGHT RANGED: {message}");
     }
 
     private void FaceTarget()
@@ -369,7 +677,7 @@ public sealed class KnightController : MonoBehaviour
 
     private void OnDisable()
     {
-        CancelCurrentAction();
+        CancelCurrentAction("KNIGHT DISABLED");
     }
 
     private void OnDrawGizmosSelected()
@@ -383,19 +691,32 @@ public sealed class KnightController : MonoBehaviour
         );
     }
     
-    private void CancelCurrentAction()
+    private void CancelCurrentAction(
+        string reason = "CANCELLED")
     {
         if (actionRoutine != null)
         {
+            if (isRangedAction)
+            {
+                LogRangedEvent(
+                    $"CANCELLED reason={reason}"
+                );
+            }
+
             StopCoroutine(actionRoutine);
             actionRoutine = null;
         }
+
+        forceProjectileNext = false;
+        isRangedAction = false;
+        StopForcedRangedBackstep();
 
         if (combatState != null)
         {
             combatState.ResetState();
         }
 
+        HideAllTelegraphs();
         RestoreNormalColor();
     }
 }
