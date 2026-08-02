@@ -23,8 +23,14 @@ public sealed class BattleManager : MonoBehaviour
     [SerializeField]
     private string enemyDisplayName = "TARGET_PROCESS";
 
+    [Header("Progression")]
+    [SerializeField] private string nextSceneName;
+
     private bool battleEnded;
+    private bool resultActionTriggered;
+    private bool shouldLoadNextScene;
     private float defaultFixedDeltaTime;
+    private TMP_Text restartButtonLabel;
 
     private void Awake()
     {
@@ -37,8 +43,11 @@ public sealed class BattleManager : MonoBehaviour
 
         if (restartButton != null)
         {
+            restartButtonLabel =
+                restartButton.GetComponentInChildren<TMP_Text>(true);
+
             restartButton.onClick.AddListener(
-                RestartBattle
+                HandleResultAction
             );
         }
     }
@@ -75,7 +84,7 @@ public sealed class BattleManager : MonoBehaviour
         if (restartButton != null)
         {
             restartButton.onClick.RemoveListener(
-                RestartBattle
+                HandleResultAction
             );
         }
     }
@@ -133,6 +142,8 @@ public sealed class BattleManager : MonoBehaviour
                       "REVISE YOUR PROGRAM";
         }
 
+        ConfigureResultAction(victory);
+
         if (resultPanel != null)
         {
             resultPanel.SetActive(true);
@@ -151,6 +162,74 @@ public sealed class BattleManager : MonoBehaviour
                 ? "BATTLE RESULT: VICTORY"
                 : "BATTLE RESULT: DEFEAT"
         );
+    }
+
+    private void ConfigureResultAction(bool victory)
+    {
+        shouldLoadNextScene =
+            victory &&
+            TryGetLoadableNextScene(out _);
+
+        SetRestartButtonLabel(
+            !victory
+                ? "RESTART PROGRAM"
+                : shouldLoadNextScene
+                    ? "NEXT PROCESS"
+                    : "RUN AGAIN"
+        );
+    }
+
+    private void SetRestartButtonLabel(string value)
+    {
+        if (restartButtonLabel != null)
+        {
+            restartButtonLabel.text = value;
+        }
+    }
+
+    private bool TryGetLoadableNextScene(out string sceneName)
+    {
+        sceneName = (nextSceneName ?? string.Empty).Trim();
+
+        if (string.IsNullOrEmpty(sceneName))
+            return false;
+
+        if (Application.CanStreamedLevelBeLoaded(sceneName))
+            return true;
+
+        Debug.LogError(
+            $"BattleManager: Next scene '{sceneName}' cannot be " +
+            "loaded. Ensure it is included in the Build Profile. " +
+            "The result action will restart the current scene."
+        );
+
+        sceneName = string.Empty;
+        return false;
+    }
+
+    private void HandleResultAction()
+    {
+        if (!battleEnded || resultActionTriggered)
+            return;
+
+        resultActionTriggered = true;
+
+        if (restartButton != null)
+        {
+            restartButton.interactable = false;
+        }
+
+        Time.timeScale = 1f;
+        Time.fixedDeltaTime = defaultFixedDeltaTime;
+
+        if (shouldLoadNextScene &&
+            TryGetLoadableNextScene(out string sceneName))
+        {
+            SceneManager.LoadScene(sceneName);
+            return;
+        }
+
+        RestartBattle();
     }
 
     private void RestartBattle()

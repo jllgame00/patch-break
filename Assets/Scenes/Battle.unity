@@ -1962,8 +1962,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::HeroAttack
   attackPoint: {fileID: 55285520}
   attackRange: 1.2
-  damage: 25
-  attackCooldown: 0.4
+  damage: 15
+  attackCooldown: 0.75
   enemyLayer:
     serializedVersion: 2
     m_Bits: 128
@@ -3145,6 +3145,7 @@ MonoBehaviour:
   resultBody: {fileID: 1179020285}
   restartButton: {fileID: 1142018616}
   enemyDisplayName: TARGET_PROCESS
+  nextSceneName: KnightBattle
 --- !u!1 &1448551372
 GameObject:
   m_ObjectHideFlags: 0
@@ -4415,63 +4416,6 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1997082949}
   m_CullTransparentMesh: 1
---- !u!1001 &8378448031609673943
-PrefabInstance:
-  m_ObjectHideFlags: 0
-  serializedVersion: 2
-  m_Modification:
-    serializedVersion: 3
-    m_TransformParent: {fileID: 0}
-    m_Modifications:
-    - target: {fileID: 2341416258889362977, guid: 1d71da0a539e08b43853996b69863dd8, type: 3}
-      propertyPath: m_Name
-      value: KnightProjectile
-      objectReference: {fileID: 0}
-    - target: {fileID: 6611232638412047950, guid: 1d71da0a539e08b43853996b69863dd8, type: 3}
-      propertyPath: m_LocalPosition.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 6611232638412047950, guid: 1d71da0a539e08b43853996b69863dd8, type: 3}
-      propertyPath: m_LocalPosition.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 6611232638412047950, guid: 1d71da0a539e08b43853996b69863dd8, type: 3}
-      propertyPath: m_LocalPosition.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 6611232638412047950, guid: 1d71da0a539e08b43853996b69863dd8, type: 3}
-      propertyPath: m_LocalRotation.w
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 6611232638412047950, guid: 1d71da0a539e08b43853996b69863dd8, type: 3}
-      propertyPath: m_LocalRotation.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 6611232638412047950, guid: 1d71da0a539e08b43853996b69863dd8, type: 3}
-      propertyPath: m_LocalRotation.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 6611232638412047950, guid: 1d71da0a539e08b43853996b69863dd8, type: 3}
-      propertyPath: m_LocalRotation.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 6611232638412047950, guid: 1d71da0a539e08b43853996b69863dd8, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 6611232638412047950, guid: 1d71da0a539e08b43853996b69863dd8, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 6611232638412047950, guid: 1d71da0a539e08b43853996b69863dd8, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.z
-      value: 0
-      objectReference: {fileID: 0}
-    m_RemovedComponents: []
-    m_RemovedGameObjects: []
-    m_AddedGameObjects: []
-    m_AddedComponents: []
-  m_SourcePrefab: {fileID: 100100000, guid: 1d71da0a539e08b43853996b69863dd8, type: 3}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
@@ -4484,4 +4428,3 @@ SceneRoots:
   - {fileID: 1388358287}
   - {fileID: 650503137}
   - {fileID: 911552942}
-  - {fileID: 8378448031609673943}

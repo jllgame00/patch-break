@@ -1962,8 +1962,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::HeroAttack
   attackPoint: {fileID: 55285520}
   attackRange: 1.2
-  damage: 25
-  attackCooldown: 0.4
+  damage: 15
+  attackCooldown: 0.75
   enemyLayer:
     serializedVersion: 2
     m_Bits: 128
@@ -2944,7 +2944,7 @@ BoxCollider2D:
     drawMode: 0
     adaptiveTiling: 0
   m_AutoTiling: 0
-  m_Size: {x: 1, y: 1}
+  m_Size: {x: 0.1, y: 0.15}
   m_EdgeRadius: 0
 --- !u!50 &1388358285
 Rigidbody2D:
@@ -3183,6 +3183,7 @@ MonoBehaviour:
   resultBody: {fileID: 1179020285}
   restartButton: {fileID: 1142018616}
   enemyDisplayName: KNIGHT_PROCESS
+  nextSceneName: 
 --- !u!1 &1448551372
 GameObject:
   m_ObjectHideFlags: 0

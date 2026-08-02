@@ -12,11 +12,11 @@ public sealed class HeroAttack : MonoBehaviour
     private float attackRange = 1.2f;
 
     [SerializeField, Min(1)]
-    private int damage = 25;
+    private int damage = 15;
 
     [FormerlySerializedAs("cooldown")]
     [SerializeField, Min(0.01f)]
-    private float attackCooldown = 0.4f;
+    private float attackCooldown = 0.75f;
 
     [SerializeField]
     private LayerMask enemyLayer;
