@@ -1827,7 +1827,7 @@ BoxCollider2D:
     drawMode: 0
     adaptiveTiling: 0
   m_AutoTiling: 0
-  m_Size: {x: 1, y: 1}
+  m_Size: {x: 0.1, y: 0.15}
   m_EdgeRadius: 0
 --- !u!50 &1076982201
 Rigidbody2D:
@@ -2102,7 +2102,7 @@ Transform:
   m_GameObject: {fileID: 1104600066}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0.7, y: 0.25, z: 0}
+  m_LocalPosition: {x: 0.7, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -3089,7 +3089,7 @@ MonoBehaviour:
   health: {fileID: 1388358288}
   targetRenderer: {fileID: 1388358286}
   cameraShake: {fileID: 519420033}
-  enemyCombatState: {fileID: 0}
+  enemyCombatState: {fileID: 1388358289}
   attackingColor: {r: 1, g: 0.25, b: 0.15, a: 1}
   flashColor: {r: 1, g: 1, b: 0.2, a: 1}
   flashDuration: 0.07
@@ -3113,11 +3113,12 @@ MonoBehaviour:
   projectileSpawnPoint: {fileID: 1104600067}
   spriteRenderer: {fileID: 1388358286}
   combatState: {fileID: 1388358289}
-  projectilePrefab: {fileID: 0}
-  hitEffectPrefab: {fileID: 0}
+  projectilePrefab: {fileID: 6920783327233527709, guid: 1d71da0a539e08b43853996b69863dd8, type: 3}
+  hitEffectPrefab: {fileID: 4790288744831826218, guid: f6b552945a284194d9aba247c9ec5e03, type: 3}
   targetLayer:
     serializedVersion: 2
-    m_Bits: 0
+    m_Bits: 256
+  runtime: {fileID: 1076982208}
   meleeTriggerDistance: 2.2
   meleeRadius: 1.1
   meleeDamage: 25
@@ -3181,7 +3182,7 @@ MonoBehaviour:
   resultTitle: {fileID: 1528208507}
   resultBody: {fileID: 1179020285}
   restartButton: {fileID: 1142018616}
-  enemyDisplayName: TARGET_PROCESS
+  enemyDisplayName: KNIGHT_PROCESS
 --- !u!1 &1448551372
 GameObject:
   m_ObjectHideFlags: 0
