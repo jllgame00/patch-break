@@ -105,6 +105,9 @@ public sealed class KnightController : MonoBehaviour
     private int closeActionCount;
     private bool forceProjectileNext;
     private bool isRangedAction;
+    private bool isActing;
+    private bool actionSkipLogged;
+    private string activeActionName;
 
     private void Awake()
     {
@@ -182,6 +185,23 @@ public sealed class KnightController : MonoBehaviour
             return;
         }
 
+        if (isActing)
+        {
+            if (verboseTelegraphLogging &&
+                !actionSkipLogged)
+            {
+                Debug.Log(
+                    "KNIGHT ACTION SELECT SKIPPED " +
+                    "reason=ACTION_IN_PROGRESS"
+                );
+
+                actionSkipLogged = true;
+            }
+
+            UpdateProjectileTelegraph();
+            return;
+        }
+
         if (actionRoutine != null)
         {
             UpdateProjectileTelegraph();
@@ -206,10 +226,10 @@ public sealed class KnightController : MonoBehaviour
                 "FORCED PROJECTILE"
             );
 
-            actionRoutine =
-                StartCoroutine(
-                    RangedAttackRoutine(forced: true)
-                );
+            StartAction(
+                "FORCED_PROJECTILE",
+                RangedAttackRoutine(forced: true)
+            );
 
             return;
         }
@@ -228,11 +248,12 @@ public sealed class KnightController : MonoBehaviour
                     : "MELEE"
             );
 
-            actionRoutine = shouldGuard
-                ? StartCoroutine(GuardRoutine())
-                : StartCoroutine(
-                    MeleeAttackRoutine()
-                );
+            StartAction(
+                shouldGuard ? "GUARD" : "MELEE",
+                shouldGuard
+                    ? GuardRoutine()
+                    : MeleeAttackRoutine()
+            );
 
             return;
         }
@@ -242,10 +263,10 @@ public sealed class KnightController : MonoBehaviour
             "PROJECTILE"
         );
 
-        actionRoutine =
-            StartCoroutine(
-                RangedAttackRoutine(forced: false)
-            );
+        StartAction(
+            "PROJECTILE",
+            RangedAttackRoutine(forced: false)
+        );
     }
 
     private IEnumerator MeleeAttackRoutine()
@@ -273,6 +294,8 @@ public sealed class KnightController : MonoBehaviour
         yield return new WaitForSeconds(
             recoveryDuration
         );
+
+        yield return WaitForActionCooldown();
 
         FinishAction();
     }
@@ -321,6 +344,8 @@ public sealed class KnightController : MonoBehaviour
             recoveryDuration
         );
 
+        yield return WaitForActionCooldown();
+
         FinishAction();
         LogRangedEvent("EXIT");
     }
@@ -347,6 +372,8 @@ public sealed class KnightController : MonoBehaviour
         yield return new WaitForSeconds(
             recoveryDuration
         );
+
+        yield return WaitForActionCooldown();
 
         FinishAction();
     }
@@ -443,11 +470,54 @@ public sealed class KnightController : MonoBehaviour
 
     private void FinishAction()
     {
+        ReleaseActionLock();
+    }
+
+    private IEnumerator WaitForActionCooldown()
+    {
         nextActionTime =
             Time.time + actionCooldown;
 
+        yield return new WaitForSeconds(
+            actionCooldown
+        );
+    }
+
+    private void StartAction(
+        string actionName,
+        IEnumerator routine)
+    {
+        isActing = true;
+        activeActionName = actionName;
+        actionSkipLogged = false;
+
+        if (verboseTelegraphLogging)
+        {
+            Debug.Log(
+                "KNIGHT ACTION LOCK: " +
+                $"ACQUIRED action={activeActionName}"
+            );
+        }
+
+        actionRoutine = StartCoroutine(routine);
+    }
+
+    private void ReleaseActionLock()
+    {
+        if (verboseTelegraphLogging &&
+            isActing)
+        {
+            Debug.Log(
+                "KNIGHT ACTION LOCK: " +
+                $"RELEASED action={activeActionName}"
+            );
+        }
+
         isRangedAction = false;
         actionRoutine = null;
+        isActing = false;
+        actionSkipLogged = false;
+        activeActionName = null;
     }
 
     private IEnumerator ForcedRangedBackstepRoutine()
@@ -766,8 +836,8 @@ public sealed class KnightController : MonoBehaviour
             actionRoutine = null;
         }
 
+        ReleaseActionLock();
         forceProjectileNext = false;
-        isRangedAction = false;
         StopForcedRangedBackstep();
 
         if (combatState != null)

@@ -21,6 +21,12 @@ public sealed class HeroActionExecutor : MonoBehaviour
         HeroActionType action,
         Transform target = null)
     {
+        if (controller == null ||
+            controller.IsStaggered)
+        {
+            return false;
+        }
+
         switch (action)
         {
             case HeroActionType.Approach:
@@ -52,7 +58,7 @@ public sealed class HeroActionExecutor : MonoBehaviour
 
     public void StopMovement()
     {
-        controller.StopMoving();
+        controller.ClearGuardRecoilAndStagger();
     }
     
     public bool ForceExecute(

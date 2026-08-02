@@ -21,11 +21,18 @@ public sealed class HeroController : MonoBehaviour
     private float originalScaleX;
     private float nextDashTime;
     private float dashInvulnerableUntil;
+    private float recoilDirection;
+    private float recoilSpeed;
+    private float recoilTimer;
+    private float staggerUntil;
 
     private bool isDashing;
+    private bool isRecoiling;
 
     public float FacingDirection => facingDirection;
     public bool IsDashing => isDashing;
+    public bool IsStaggered =>
+        isRecoiling || Time.time < staggerUntil;
     public bool IsDashInvulnerable => Time.time < dashInvulnerableUntil;
 
     private void Awake()
@@ -36,9 +43,25 @@ public sealed class HeroController : MonoBehaviour
 
     private void FixedUpdate()
     {
+        if (isRecoiling)
+        {
+            UpdateGuardRecoil();
+            return;
+        }
+
         if (isDashing)
         {
             UpdateDash();
+            return;
+        }
+
+        if (IsStaggered)
+        {
+            body.linearVelocity = new Vector2(
+                0f,
+                body.linearVelocity.y
+            );
+
             return;
         }
 
@@ -50,6 +73,11 @@ public sealed class HeroController : MonoBehaviour
 
     public void SetMoveInput(float input)
     {
+        if (IsStaggered)
+        {
+            return;
+        }
+
         moveInput = Mathf.Clamp(input, -1f, 1f);
 
         if (Mathf.Approximately(moveInput, 0f))
@@ -69,8 +97,12 @@ public sealed class HeroController : MonoBehaviour
     
     public bool TryApproach(Transform target)
     {
-        if (target == null || isDashing)
+        if (target == null ||
+            isDashing ||
+            IsStaggered)
+        {
             return false;
+        }
 
         float horizontalDistance =
             target.position.x - transform.position.x;
@@ -102,12 +134,65 @@ public sealed class HeroController : MonoBehaviour
 
     public bool ForceDash(float direction)
     {
+        if (isDashing)
+        {
+            return false;
+        }
+
+        ClearGuardRecoilAndStagger();
+
         return StartDash(direction, ignoreCooldown: true);
+    }
+
+    public void ApplyGuardRecoil(
+        Transform source,
+        float recoilDistance,
+        float recoilDuration,
+        float staggerDuration)
+    {
+        isDashing = false;
+        dashTimer = 0f;
+        StopMoving();
+
+        recoilDirection = GetDirectionAwayFrom(source);
+
+        staggerUntil = Mathf.Max(
+            staggerUntil,
+            Time.time + Mathf.Max(0f, staggerDuration)
+        );
+
+        if (recoilDistance <= 0f ||
+            recoilDuration <= 0f)
+        {
+            isRecoiling = false;
+            recoilTimer = 0f;
+            recoilSpeed = 0f;
+            return;
+        }
+
+        recoilSpeed = recoilDistance / recoilDuration;
+        recoilTimer = recoilDuration;
+        isRecoiling = true;
+
+        body.linearVelocity = new Vector2(
+            recoilDirection * recoilSpeed,
+            body.linearVelocity.y
+        );
+    }
+
+    public void ClearGuardRecoilAndStagger()
+    {
+        isRecoiling = false;
+        recoilTimer = 0f;
+        recoilSpeed = 0f;
+        staggerUntil = 0f;
+
+        StopMoving();
     }
 
     private bool StartDash(float direction, bool ignoreCooldown)
     {
-        if (isDashing)
+        if (isDashing || IsStaggered)
         {
             return false;
         }
@@ -158,10 +243,51 @@ public sealed class HeroController : MonoBehaviour
         body.linearVelocity = new Vector2(0f, body.linearVelocity.y);
     }
 
+    private void UpdateGuardRecoil()
+    {
+        recoilTimer -= Time.fixedDeltaTime;
+
+        body.linearVelocity = new Vector2(
+            recoilDirection * recoilSpeed,
+            body.linearVelocity.y
+        );
+
+        if (recoilTimer > 0f)
+            return;
+
+        isRecoiling = false;
+        recoilSpeed = 0f;
+        body.linearVelocity = new Vector2(
+            0f,
+            body.linearVelocity.y
+        );
+    }
+
+    private float GetDirectionAwayFrom(Transform source)
+    {
+        if (source != null)
+        {
+            float deltaX =
+                transform.position.x - source.position.x;
+
+            if (Mathf.Abs(deltaX) >= 0.001f)
+            {
+                return Mathf.Sign(deltaX);
+            }
+        }
+
+        return -facingDirection;
+    }
+
     private void UpdateFacingVisual()
     {
         Vector3 scale = transform.localScale;
         scale.x = originalScaleX * facingDirection;
         transform.localScale = scale;
+    }
+
+    private void OnDisable()
+    {
+        ClearGuardRecoilAndStagger();
     }
 }

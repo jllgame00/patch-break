@@ -21,11 +21,32 @@ public sealed class HeroAttack : MonoBehaviour
     [SerializeField]
     private LayerMask enemyLayer;
 
+    [Header("Guard Block")]
+    [SerializeField, Min(1)]
+    private int guardCounterDamage = 20;
+
+    [SerializeField, Min(0f)]
+    private float guardRecoilDistance = 1f;
+
+    [SerializeField, Min(0.01f)]
+    private float guardRecoilDuration = 0.15f;
+
+    [SerializeField, Min(0f)]
+    private float guardStaggerDuration = 0.4f;
+
     [Header("Effects")]
     [SerializeField]
     private GameObject hitEffectPrefab;
 
     private float nextAttackTime;
+    private HeroController heroController;
+    private Health heroHealth;
+
+    private void Awake()
+    {
+        heroController = GetComponent<HeroController>();
+        heroHealth = GetComponent<Health>();
+    }
 
     public bool TryAttack()
     {
@@ -55,6 +76,7 @@ public sealed class HeroAttack : MonoBehaviour
 
         HashSet<Health> processedTargets = new();
         int successfulHits = 0;
+        bool guardCounterApplied = false;
 
         foreach (Collider2D hit in hits)
         {
@@ -84,6 +106,39 @@ public sealed class HeroAttack : MonoBehaviour
                 Debug.Log(
                     "HERO SLASH BLOCKED BY GUARD"
                 );
+
+                if (!guardCounterApplied)
+                {
+                    guardCounterApplied = true;
+
+                    if (heroHealth != null)
+                    {
+                        heroHealth.TakeDamage(
+                            guardCounterDamage
+                        );
+
+                        Debug.Log(
+                            "HERO TOOK " +
+                            $"{guardCounterDamage} " +
+                            "GUARD COUNTER DAMAGE"
+                        );
+
+                        if (heroHealth.IsDead)
+                        {
+                            return true;
+                        }
+                    }
+
+                    if (heroController != null)
+                    {
+                        heroController.ApplyGuardRecoil(
+                            combatState.transform,
+                            guardRecoilDistance,
+                            guardRecoilDuration,
+                            guardStaggerDuration
+                        );
+                    }
+                }
 
                 continue;
             }

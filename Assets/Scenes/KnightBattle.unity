@@ -2149,7 +2149,11 @@ MonoBehaviour:
   enemyLayer:
     serializedVersion: 2
     m_Bits: 128
-  hitEffectPrefab: {fileID: 0}
+  guardCounterDamage: 20
+  guardRecoilDistance: 1
+  guardRecoilDuration: 0.15
+  guardStaggerDuration: 0.4
+  hitEffectPrefab: {fileID: 4790288744831826218, guid: f6b552945a284194d9aba247c9ec5e03, type: 3}
 --- !u!114 &1076982206
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3405,7 +3409,7 @@ MonoBehaviour:
   rangedWindup: 0.25
   guardDuration: 0.9
   guardIndicator: {fileID: 2134043678}
-  guardIndicatorOffsetX: 0.75
+  guardIndicatorOffsetX: 0.5
   recoveryDuration: 0.3
   actionCooldown: 0.7
   forcedRangedBackstepDistance: 1.8
@@ -5042,7 +5046,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0.1, z: 0}
-  m_LocalScale: {x: 0.34, y: 0.9, z: 1}
+  m_LocalScale: {x: 1, y: 6, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1388358287}
