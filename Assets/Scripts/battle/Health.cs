@@ -11,6 +11,7 @@ public sealed class Health : MonoBehaviour
     public bool IsDead => CurrentHealth <= 0;
 
     public event Action<Health> HealthChanged;
+    public event Action<Health, int> Damaged;
     public event Action<Health> Died;
 
     private void Awake()
@@ -23,17 +24,23 @@ public sealed class Health : MonoBehaviour
         if (IsDead || damage <= 0)
             return;
 
+        int previousHealth = CurrentHealth;
+
         CurrentHealth = Mathf.Max(
             0,
             CurrentHealth - damage
         );
 
+        int appliedDamage =
+            previousHealth - CurrentHealth;
+
         Debug.Log(
-            $"{name} took {damage} damage. " +
+            $"{name} took {appliedDamage} damage. " +
             $"HP: {CurrentHealth}/{maxHealth}"
         );
 
         HealthChanged?.Invoke(this);
+        Damaged?.Invoke(this, appliedDamage);
 
         if (IsDead)
         {

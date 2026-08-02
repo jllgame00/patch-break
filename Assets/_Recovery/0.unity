@@ -667,7 +667,6 @@ GameObject:
   - component: {fileID: 519420031}
   - component: {fileID: 519420029}
   - component: {fileID: 519420030}
-  - component: {fileID: 519420033}
   m_Layer: 0
   m_Name: Main Camera
   m_TagString: MainCamera
@@ -793,18 +792,6 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &519420033
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 519420028}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: f8141bca6146c2441bba67d9ea441771, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::CameraShake
 --- !u!1 &599525121
 GameObject:
   m_ObjectHideFlags: 0
@@ -1775,7 +1762,6 @@ GameObject:
   - component: {fileID: 1076982209}
   - component: {fileID: 1076982210}
   - component: {fileID: 1076982211}
-  - component: {fileID: 1076982212}
   m_Layer: 8
   m_Name: Hero
   m_TagString: Untagged
@@ -2054,27 +2040,6 @@ MonoBehaviour:
   patchKey: 32
   maxUses: 1
   slowMotionScale: 0.08
---- !u!114 &1076982212
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1076982199}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 68bb5cf40506b7c4b92c0e1ae9ddb95b, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DamageFeedback
-  health: {fileID: 1076982209}
-  targetRenderer: {fileID: 1076982202}
-  cameraShake: {fileID: 519420033}
-  enemyCombatState: {fileID: 0}
-  attackingColor: {r: 1, g: 0.25, b: 0.15, a: 1}
-  flashColor: {r: 1, g: 1, b: 0.2, a: 1}
-  flashDuration: 0.07
-  shakeDuration: 0.1
-  shakeStrength: 0.1
 --- !u!1 &1142018614
 GameObject:
   m_ObjectHideFlags: 0
@@ -2859,7 +2824,6 @@ GameObject:
   - component: {fileID: 1388358288}
   - component: {fileID: 1388358289}
   - component: {fileID: 1388358290}
-  - component: {fileID: 1388358291}
   m_Layer: 7
   m_Name: Golem
   m_TagString: Untagged
@@ -3066,27 +3030,6 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 256
   windupColor: {r: 1, g: 0.25, b: 0.15, a: 1}
---- !u!114 &1388358291
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1388358283}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 68bb5cf40506b7c4b92c0e1ae9ddb95b, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DamageFeedback
-  health: {fileID: 1388358288}
-  targetRenderer: {fileID: 1388358286}
-  cameraShake: {fileID: 519420033}
-  enemyCombatState: {fileID: 0}
-  attackingColor: {r: 1, g: 0.25, b: 0.15, a: 1}
-  flashColor: {r: 1, g: 1, b: 0.2, a: 1}
-  flashDuration: 0.07
-  shakeDuration: 0.08
-  shakeStrength: 0.06
 --- !u!1 &1430934172
 GameObject:
   m_ObjectHideFlags: 0
