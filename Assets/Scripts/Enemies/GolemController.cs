@@ -10,6 +10,8 @@ public sealed class GolemController : MonoBehaviour
     [SerializeField] private Transform attackPoint;
     [SerializeField] private SpriteRenderer spriteRenderer;
     [SerializeField] private EnemyCombatState combatState;
+    [SerializeField] private SpriteRenderer attackRangeTelegraph;
+    [SerializeField] private GameObject hitEffectPrefab;
 
     [Header("Attack")]
     [SerializeField, Min(0.1f)]
@@ -60,6 +62,8 @@ public sealed class GolemController : MonoBehaviour
         {
             normalColor = spriteRenderer.color;
         }
+        
+        SetAttackRangeTelegraph(false);
     }
 
     private void Update()
@@ -96,20 +100,30 @@ public sealed class GolemController : MonoBehaviour
     private IEnumerator AttackRoutine()
     {
         combatState.SetAttacking(true);
+
         SetTelegraphVisual(true);
+        SetAttackRangeTelegraph(true);
 
         Debug.Log("GOLEM: ATTACK WINDUP");
 
-        yield return new WaitForSeconds(windupDuration);
+        yield return new WaitForSeconds(
+            windupDuration
+        );
 
         PerformAttack();
 
         combatState.SetAttacking(false);
+
         SetTelegraphVisual(false);
+        SetAttackRangeTelegraph(false);
 
-        yield return new WaitForSeconds(recoveryDuration);
+        yield return new WaitForSeconds(
+            recoveryDuration
+        );
 
-        nextAttackTime = Time.time + attackCooldown;
+        nextAttackTime =
+            Time.time + attackCooldown;
+
         attackRoutine = null;
     }
 
@@ -142,7 +156,13 @@ public sealed class GolemController : MonoBehaviour
                 continue;
             }
 
+            Vector2 hitPosition =
+                hit.ClosestPoint(
+                    attackPoint.position
+                );
+
             health.TakeDamage(attackDamage);
+            SpawnHitEffect(hitPosition);
         }
 
         Debug.Log(
@@ -193,6 +213,7 @@ public sealed class GolemController : MonoBehaviour
         }
 
         SetTelegraphVisual(false);
+        SetAttackRangeTelegraph(false);
     }
 
     private void OnDrawGizmosSelected()
@@ -205,6 +226,36 @@ public sealed class GolemController : MonoBehaviour
         Gizmos.DrawWireSphere(
             attackPoint.position,
             attackRadius
+        );
+    }
+    
+    private void SetAttackRangeTelegraph(
+        bool active)
+    {
+        if (attackRangeTelegraph == null)
+            return;
+
+        attackRangeTelegraph.enabled = active;
+
+        float diameter = attackRadius * 2f;
+
+        attackRangeTelegraph.transform.localScale =
+            new Vector3(
+                diameter,
+                diameter,
+                1f
+            );
+    }
+
+    private void SpawnHitEffect(Vector3 position)
+    {
+        if (hitEffectPrefab == null)
+            return;
+
+        Instantiate(
+            hitEffectPrefab,
+            position,
+            Quaternion.identity
         );
     }
 }
