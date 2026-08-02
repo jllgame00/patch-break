@@ -55,7 +55,15 @@ public sealed class HeroController : MonoBehaviour
         if (Mathf.Approximately(moveInput, 0f))
             return;
 
-        facingDirection = Mathf.Sign(moveInput);
+        FaceDirection(moveInput);
+    }
+
+    public void FaceDirection(float direction)
+    {
+        if (Mathf.Approximately(direction, 0f))
+            return;
+
+        facingDirection = Mathf.Sign(direction);
         UpdateFacingVisual();
     }
     

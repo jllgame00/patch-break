@@ -24,6 +24,7 @@ public sealed class ProgramRuntime : MonoBehaviour
     private float evaluationTimer;
 
     public bool IsRunning { get; private set; }
+    public Transform Target => enemy;
     public string LastCompileMessage { get; private set; } =
         "READY. Enter program and compile.";
 

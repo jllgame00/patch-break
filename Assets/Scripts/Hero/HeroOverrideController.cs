@@ -60,8 +60,14 @@ public sealed class HeroOverrideController : MonoBehaviour
 
     private void TryUseDashBackOverride()
     {
+        Transform target =
+            runtime == null
+                ? null
+                : runtime.Target;
+
         bool executed = executor.ForceExecute(
-            HeroActionType.DashBack
+            HeroActionType.DashBack,
+            target
         );
 
         if (!executed)
