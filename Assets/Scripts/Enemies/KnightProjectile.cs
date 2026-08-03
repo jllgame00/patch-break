@@ -18,12 +18,22 @@ public sealed class KnightProjectile : MonoBehaviour
     [SerializeField]
     private LayerMask targetLayer;
 
+    [SerializeField]
+    private LayerMask blockingLayer;
+
     [Header("Effects")]
     [SerializeField]
     private GameObject hitEffectPrefab;
 
     private Rigidbody2D body;
     private float horizontalDirection;
+    private float lockedTargetX;
+    private bool hasLockedTarget;
+    private bool reachedLockedTarget;
+    private bool resolved;
+    private bool verboseProjectileLogging;
+    private System.Action resolvedCallback;
+    private bool resolutionNotified;
 
     private void Awake()
     {
@@ -31,11 +41,12 @@ public sealed class KnightProjectile : MonoBehaviour
     }
 
     public void Launch(
-        Vector2 direction,
-        HeroController targetHero)
+        float direction,
+        float targetX,
+        bool verboseLogging,
+        System.Action onResolved)
     {
-        horizontalDirection =
-            Mathf.Sign(direction.x);
+        horizontalDirection = Mathf.Sign(direction);
 
         if (Mathf.Approximately(
                 horizontalDirection,
@@ -43,6 +54,14 @@ public sealed class KnightProjectile : MonoBehaviour
         {
             horizontalDirection = 1f;
         }
+
+        lockedTargetX = targetX;
+        hasLockedTarget = true;
+        reachedLockedTarget = false;
+        resolved = false;
+        verboseProjectileLogging = verboseLogging;
+        resolvedCallback = onResolved;
+        resolutionNotified = false;
 
         body.linearVelocity =
             new Vector2(
@@ -53,8 +72,66 @@ public sealed class KnightProjectile : MonoBehaviour
         Destroy(gameObject, lifetime);
     }
 
+    private void FixedUpdate()
+    {
+        if (body == null ||
+            !hasLockedTarget ||
+            resolved)
+        {
+            return;
+        }
+
+        if (reachedLockedTarget)
+        {
+            ReachLockedTarget();
+            return;
+        }
+
+        float remainingDistance =
+            lockedTargetX - body.position.x;
+
+        if (HasReachedOrPassedTarget(remainingDistance))
+        {
+            ReachLockedTarget();
+            return;
+        }
+
+        float movementThisStep =
+            speed * Time.fixedDeltaTime;
+
+        if (Mathf.Abs(remainingDistance) <=
+            movementThisStep)
+        {
+            body.MovePosition(
+                new Vector2(
+                    lockedTargetX,
+                    body.position.y
+                )
+            );
+
+            body.linearVelocity = Vector2.zero;
+            reachedLockedTarget = true;
+            return;
+        }
+
+        body.linearVelocity =
+            new Vector2(
+                horizontalDirection * speed,
+                0f
+            );
+    }
+
     private void OnTriggerEnter2D(Collider2D other)
     {
+        if (resolved)
+            return;
+
+        if (IsInBlockingLayer(other.gameObject.layer))
+        {
+            ResolveAndDestroy();
+            return;
+        }
+
         if (!IsInTargetLayer(other.gameObject.layer))
             return;
 
@@ -67,12 +144,15 @@ public sealed class KnightProjectile : MonoBehaviour
         bool heroIsInvulnerable =
             hero != null && hero.IsInvulnerable;
 
-        if (hero != null &&
-            hero.IsVerboseDashLogging)
+        if (verboseProjectileLogging ||
+            (hero != null &&
+             hero.IsVerboseDashLogging))
         {
             Debug.Log(
                 "KNIGHT PROJECTILE CONTACT\n" +
-                "time=" + Time.time.ToString("F3") + "\n" +
+                $"heroX={other.transform.position.x:F2}\n" +
+                $"projectileX={transform.position.x:F2}\n" +
+                $"targetX={lockedTargetX:F2}\n" +
                 "heroIsDashing=" + heroIsDashing + "\n" +
                 "heroIsInvulnerable=" +
                 heroIsInvulnerable + "\n" +
@@ -87,7 +167,7 @@ public sealed class KnightProjectile : MonoBehaviour
                 "KNIGHT PROJECTILE EVADED"
             );
 
-            Destroy(gameObject);
+            ResolveAndDestroy();
             return;
         }
 
@@ -107,13 +187,78 @@ public sealed class KnightProjectile : MonoBehaviour
 
         Debug.Log("KNIGHT PROJECTILE HIT");
 
-        Destroy(gameObject);
+        ResolveAndDestroy();
     }
 
     private bool IsInTargetLayer(int layer)
     {
         return
             (targetLayer.value & (1 << layer)) != 0;
+    }
+
+    private bool IsInBlockingLayer(int layer)
+    {
+        return
+            (blockingLayer.value & (1 << layer)) != 0;
+    }
+
+    private bool HasReachedOrPassedTarget(
+        float remainingDistance)
+    {
+        return horizontalDirection > 0f
+            ? remainingDistance <= 0f
+            : remainingDistance >= 0f;
+    }
+
+    private void ReachLockedTarget()
+    {
+        if (resolved)
+            return;
+
+        body.position =
+            new Vector2(
+                lockedTargetX,
+                body.position.y
+            );
+
+        if (verboseProjectileLogging)
+        {
+            Debug.Log(
+                "KNIGHT PROJECTILE REACHED LOCKED TARGET\n" +
+                $"currentX={transform.position.x:F2}\n" +
+                $"targetX={lockedTargetX:F2}\n" +
+                "result=MISS"
+            );
+        }
+
+        ResolveAndDestroy();
+    }
+
+    private void ResolveAndDestroy()
+    {
+        if (resolved)
+            return;
+
+        resolved = true;
+        hasLockedTarget = false;
+
+        if (body != null)
+        {
+            body.linearVelocity = Vector2.zero;
+        }
+
+        NotifyResolved();
+        Destroy(gameObject);
+    }
+
+    private void NotifyResolved()
+    {
+        if (resolutionNotified)
+            return;
+
+        resolutionNotified = true;
+        resolvedCallback?.Invoke();
+        resolvedCallback = null;
     }
 
     private void SpawnHitEffect(Vector3 position)
@@ -135,5 +280,7 @@ public sealed class KnightProjectile : MonoBehaviour
             body.linearVelocity =
                 Vector2.zero;
         }
+
+        NotifyResolved();
     }
 }

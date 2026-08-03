@@ -43,6 +43,10 @@ public sealed class KnightController : MonoBehaviour
     [SerializeField]
     private GameObject projectileTelegraph;
 
+    [SerializeField, Min(0.01f)]
+    private float projectileTelegraphReferenceLength =
+        4.05f;
+
     [Header("Diagnostics")]
     [SerializeField]
     private bool verboseTelegraphLogging;
@@ -108,6 +112,10 @@ public sealed class KnightController : MonoBehaviour
     private bool isActing;
     private bool actionSkipLogged;
     private string activeActionName;
+    private float lockedProjectileTargetX;
+    private bool hasLockedProjectileTarget;
+    private int nextProjectileAttackSignalId;
+    private int activeProjectileAttackSignalId;
 
     private void Awake()
     {
@@ -271,6 +279,7 @@ public sealed class KnightController : MonoBehaviour
 
     private IEnumerator MeleeAttackRoutine()
     {
+        InvalidateProjectileAttackSignal();
         combatState.SetAttacking(true);
         SetColor(attackColor);
         HideGuardIndicator();
@@ -313,9 +322,21 @@ public sealed class KnightController : MonoBehaviour
             yield return ForcedRangedBackstepRoutine();
         }
 
+        if (!TryLockProjectileTarget())
+        {
+            LogRangedEvent(
+                "CANCELLED reason=TARGET LOCK FAILED"
+            );
+
+            FinishAction();
+            yield break;
+        }
+
         forceProjectileNext = false;
 
+        InvalidateProjectileAttackSignal();
         combatState.SetAttacking(true);
+        int attackSignalId = BeginProjectileAttackSignal();
         SetColor(attackColor);
         HideGuardIndicator();
         HideAllTelegraphs();
@@ -335,10 +356,12 @@ public sealed class KnightController : MonoBehaviour
         HideAllTelegraphs();
 
         LogRangedEvent("SPAWN PROJECTILE");
-        SpawnProjectile();
-
-        combatState.SetAttacking(false);
-        RestoreNormalColor();
+        if (!SpawnProjectile(attackSignalId))
+        {
+            ResolveProjectileAttackSignal(
+                attackSignalId
+            );
+        }
 
         yield return new WaitForSeconds(
             recoveryDuration
@@ -352,6 +375,7 @@ public sealed class KnightController : MonoBehaviour
 
     private IEnumerator GuardRoutine()
     {
+        InvalidateProjectileAttackSignal();
         combatState.SetGuarding(true);
         SetColor(guardColor);
         HideAllTelegraphs();
@@ -420,23 +444,22 @@ public sealed class KnightController : MonoBehaviour
         );
     }
 
-    private void SpawnProjectile()
+    private bool SpawnProjectile(int attackSignalId)
     {
         if (projectilePrefab == null ||
             projectileSpawnPoint == null ||
-            target == null)
+            !hasLockedProjectileTarget)
         {
             Debug.LogError(
                 "KnightController: " +
                 "Projectile reference missing."
             );
 
-            return;
+            return false;
         }
 
-        Vector2 direction =
-            target.position -
-            projectileSpawnPoint.position;
+        float direction =
+            GetLockedProjectileDirection();
 
         KnightProjectile projectile =
             Instantiate(
@@ -447,12 +470,30 @@ public sealed class KnightController : MonoBehaviour
 
         projectile.Launch(
             direction,
-            targetHero
+            lockedProjectileTargetX,
+            verboseTelegraphLogging,
+            () => ResolveProjectileAttackSignal(
+                attackSignalId
+            )
         );
+
+        if (verboseTelegraphLogging)
+        {
+            Debug.Log(
+                "KNIGHT PROJECTILE SPAWNED\n" +
+                $"spawnX={projectileSpawnPoint.position.x:F2}\n" +
+                $"targetX={lockedProjectileTargetX:F2}\n" +
+                $"direction={direction:F0}"
+            );
+        }
+
+        ClearProjectileTargetLock();
 
         Debug.Log(
             "KNIGHT: PROJECTILE FIRED"
         );
+
+        return true;
     }
 
     private void SpawnHitEffect(
@@ -606,7 +647,7 @@ public sealed class KnightController : MonoBehaviour
         if (verboseTelegraphLogging)
         {
             float direction =
-                GetProjectileHorizontalDirection();
+                GetLockedProjectileDirection();
 
             Debug.Log(
                 "KNIGHT TELEGRAPH: " +
@@ -625,7 +666,7 @@ public sealed class KnightController : MonoBehaviour
         }
 
         float direction =
-            GetProjectileHorizontalDirection();
+            GetLockedProjectileDirection();
 
         Vector3 position =
             projectileSpawnPoint.position;
@@ -636,17 +677,38 @@ public sealed class KnightController : MonoBehaviour
         Transform parent =
             projectileTelegraph.transform.parent;
 
+        float parentScaleMagnitude =
+            parent == null
+                ? 1f
+                : Mathf.Abs(parent.lossyScale.x);
+
         float parentDirection =
             parent == null ||
             Mathf.Approximately(parent.lossyScale.x, 0f)
                 ? 1f
                 : Mathf.Sign(parent.lossyScale.x);
 
+        float targetDistance =
+            hasLockedProjectileTarget
+                ? Mathf.Abs(
+                    lockedProjectileTargetX -
+                    projectileSpawnPoint.position.x
+                )
+                : 0f;
+
+        float localScaleMagnitude =
+            targetDistance /
+            Mathf.Max(
+                0.01f,
+                projectileTelegraphReferenceLength *
+                Mathf.Max(0.01f, parentScaleMagnitude)
+            );
+
         Vector3 scale =
             projectileTelegraph.transform.localScale;
 
         scale.x =
-            Mathf.Abs(scale.x) *
+            localScaleMagnitude *
             direction *
             parentDirection;
 
@@ -654,19 +716,83 @@ public sealed class KnightController : MonoBehaviour
             scale;
     }
 
-    private float GetProjectileHorizontalDirection()
+    private bool TryLockProjectileTarget()
+    {
+        if (target == null ||
+            projectileSpawnPoint == null)
+        {
+            return false;
+        }
+
+        lockedProjectileTargetX = target.position.x;
+        hasLockedProjectileTarget = true;
+
+        if (verboseTelegraphLogging)
+        {
+            Debug.Log(
+                "KNIGHT PROJECTILE TARGET LOCK\n" +
+                $"heroX={target.position.x:F2}\n" +
+                $"targetX={lockedProjectileTargetX:F2}\n" +
+                $"spawnX={projectileSpawnPoint.position.x:F2}"
+            );
+        }
+
+        return true;
+    }
+
+    private float GetLockedProjectileDirection()
     {
         float direction =
-            target == null ||
+            !hasLockedProjectileTarget ||
             projectileSpawnPoint == null
                 ? 1f
-                : target.position.x -
+                : lockedProjectileTargetX -
                   projectileSpawnPoint.position.x;
 
         if (Mathf.Approximately(direction, 0f))
             return 1f;
 
         return Mathf.Sign(direction);
+    }
+
+    private void ClearProjectileTargetLock()
+    {
+        hasLockedProjectileTarget = false;
+        lockedProjectileTargetX = 0f;
+    }
+
+    private int BeginProjectileAttackSignal()
+    {
+        nextProjectileAttackSignalId++;
+        activeProjectileAttackSignalId =
+            nextProjectileAttackSignalId;
+
+        return activeProjectileAttackSignalId;
+    }
+
+    private void InvalidateProjectileAttackSignal()
+    {
+        activeProjectileAttackSignalId = 0;
+    }
+
+    private void ResolveProjectileAttackSignal(
+        int attackSignalId)
+    {
+        if (attackSignalId == 0 ||
+            attackSignalId !=
+            activeProjectileAttackSignalId)
+        {
+            return;
+        }
+
+        activeProjectileAttackSignalId = 0;
+
+        if (combatState != null)
+        {
+            combatState.SetAttacking(false);
+        }
+
+        RestoreNormalColor();
     }
 
     private void HideAllTelegraphs()
@@ -838,6 +964,8 @@ public sealed class KnightController : MonoBehaviour
 
         ReleaseActionLock();
         forceProjectileNext = false;
+        ClearProjectileTargetLock();
+        InvalidateProjectileAttackSignal();
         StopForcedRangedBackstep();
 
         if (combatState != null)

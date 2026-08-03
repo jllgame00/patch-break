@@ -337,6 +337,7 @@ public sealed class HeroController : MonoBehaviour
         Debug.Log(
             "HERO DASH: START\n" +
             $"time={Time.time:F3}\n" +
+            $"heroX={transform.position.x:F2}\n" +
             $"direction={dashDirection:F0}\n" +
             $"isDashing={isDashing}\n" +
             $"isInvulnerable={IsInvulnerable}"
