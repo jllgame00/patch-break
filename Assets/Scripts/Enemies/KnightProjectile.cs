@@ -34,6 +34,7 @@ public sealed class KnightProjectile : MonoBehaviour
     private bool verboseProjectileLogging;
     private System.Action resolvedCallback;
     private bool resolutionNotified;
+    private string logPrefix = "KNIGHT PROJECTILE";
 
     private void Awake()
     {
@@ -44,7 +45,8 @@ public sealed class KnightProjectile : MonoBehaviour
         float direction,
         float targetX,
         bool verboseLogging,
-        System.Action onResolved)
+        System.Action onResolved,
+        string projectileLogPrefix = "KNIGHT PROJECTILE")
     {
         horizontalDirection = Mathf.Sign(direction);
 
@@ -62,6 +64,10 @@ public sealed class KnightProjectile : MonoBehaviour
         verboseProjectileLogging = verboseLogging;
         resolvedCallback = onResolved;
         resolutionNotified = false;
+        logPrefix = string.IsNullOrWhiteSpace(
+            projectileLogPrefix)
+            ? "KNIGHT PROJECTILE"
+            : projectileLogPrefix;
 
         body.linearVelocity =
             new Vector2(
@@ -149,7 +155,7 @@ public sealed class KnightProjectile : MonoBehaviour
              hero.IsVerboseDashLogging))
         {
             Debug.Log(
-                "KNIGHT PROJECTILE CONTACT\n" +
+                $"{logPrefix} CONTACT\n" +
                 $"heroX={other.transform.position.x:F2}\n" +
                 $"projectileX={transform.position.x:F2}\n" +
                 $"targetX={lockedTargetX:F2}\n" +
@@ -164,7 +170,7 @@ public sealed class KnightProjectile : MonoBehaviour
         if (heroIsInvulnerable)
         {
             Debug.Log(
-                "KNIGHT PROJECTILE EVADED"
+                $"{logPrefix} EVADED"
             );
 
             ResolveAndDestroy();
@@ -185,7 +191,7 @@ public sealed class KnightProjectile : MonoBehaviour
         health.TakeDamage(damage);
         SpawnHitEffect(hitPosition);
 
-        Debug.Log("KNIGHT PROJECTILE HIT");
+        Debug.Log($"{logPrefix} HIT");
 
         ResolveAndDestroy();
     }
@@ -224,7 +230,7 @@ public sealed class KnightProjectile : MonoBehaviour
         if (verboseProjectileLogging)
         {
             Debug.Log(
-                "KNIGHT PROJECTILE REACHED LOCKED TARGET\n" +
+                $"{logPrefix} REACHED LOCKED TARGET\n" +
                 $"currentX={transform.position.x:F2}\n" +
                 $"targetX={lockedTargetX:F2}\n" +
                 "result=MISS"

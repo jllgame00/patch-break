@@ -23,6 +23,9 @@ public sealed class BattleManager : MonoBehaviour
     [SerializeField]
     private string enemyDisplayName = "TARGET_PROCESS";
 
+    [SerializeField, TextArea(2, 4)]
+    private string victoryBodyOverride;
+
     [Header("Progression")]
     [SerializeField] private string nextSceneName;
 
@@ -136,8 +139,7 @@ public sealed class BattleManager : MonoBehaviour
         {
             resultBody.text =
                 victory
-                    ? "TARGET PROCESS TERMINATED\n" +
-                      $"{enemyDisplayName} CLEARED"
+                    ? GetVictoryResultBody()
                     : "HERO_RUNTIME.EXE HAS STOPPED\n" +
                       "REVISE YOUR PROGRAM";
         }
@@ -177,6 +179,18 @@ public sealed class BattleManager : MonoBehaviour
                     ? "NEXT PROCESS"
                     : "RUN AGAIN"
         );
+    }
+
+    private string GetVictoryResultBody()
+    {
+        if (!string.IsNullOrWhiteSpace(
+                victoryBodyOverride))
+        {
+            return victoryBodyOverride;
+        }
+
+        return "TARGET PROCESS TERMINATED\n" +
+               $"{enemyDisplayName} CLEARED";
     }
 
     private void SetRestartButtonLabel(string value)

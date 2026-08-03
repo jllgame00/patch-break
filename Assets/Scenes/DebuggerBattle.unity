@@ -147,8 +147,7 @@ Transform:
   m_LocalPosition: {x: 1, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
-  m_Children:
-  - {fileID: 1914110098}
+  m_Children: []
   m_Father: {fileID: 1076982203}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &231398537
@@ -1959,6 +1958,7 @@ GameObject:
   - component: {fileID: 1076982210}
   - component: {fileID: 1076982211}
   - component: {fileID: 1076982212}
+  - component: {fileID: 1076982213}
   m_Layer: 8
   m_Name: Hero
   m_TagString: Untagged
@@ -2130,7 +2130,7 @@ MonoBehaviour:
   dashSpeed: 12
   dashDuration: 0.15
   dashCooldown: 0.75
-  postDashInvulnerabilityGrace: 0
+  dashInvulnerabilityDuration: 0.65
 --- !u!114 &1076982205
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2195,7 +2195,7 @@ MonoBehaviour:
   executor: {fileID: 1076982207}
   enemy: {fileID: 1388358287}
   enemyState: {fileID: 1388358289}
-  patternTracker: {fileID: 1914110097}
+  patternTracker: {fileID: 1076982213}
   evaluationInterval: 0.1
   enemyNearDistance: 2.2
   disableManualInputOnStart: 1
@@ -2266,6 +2266,22 @@ MonoBehaviour:
   flashDuration: 0.07
   shakeDuration: 0.1
   shakeStrength: 0.1
+--- !u!114 &1076982213
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1076982199}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9dd2c3b4510405a48926960924db97ca, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerPatternTracker
+  attackHistoryCapacity: 5
+  guardHistoryCapacity: 4
+  backDashDetectionCount: 3
+  verbosePatternLogging: 1
 --- !u!1 &1104600066
 GameObject:
   m_ObjectHideFlags: 0
@@ -3175,7 +3191,7 @@ GameObject:
   - component: {fileID: 1388358291}
   - component: {fileID: 1388358292}
   m_Layer: 7
-  m_Name: Knight
+  m_Name: Debugger
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -3304,7 +3320,7 @@ SpriteRenderer:
   m_SortingOrder: 0
   m_MaskInteraction: 0
   m_Sprite: {fileID: 10917, guid: 0000000000000000f000000000000000, type: 0}
-  m_Color: {r: 0, g: 0.09064515, b: 0.3679245, a: 1}
+  m_Color: {r: 0.55, g: 0.1, b: 0.7, a: 1}
   m_FlipX: 0
   m_FlipY: 0
   m_DrawMode: 0
@@ -3323,7 +3339,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 1, y: -1.5, z: 0}
-  m_LocalScale: {x: 1.5, y: 1.5, z: 1}
+  m_LocalScale: {x: 1.8, y: 1.8, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 1575556124}
@@ -3343,7 +3359,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f7d62d1b04d5f7542b65a927a8ee3200, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Health
-  maxHealth: 150
+  maxHealth: 240
 --- !u!114 &1388358289
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3386,9 +3402,9 @@ MonoBehaviour:
   m_GameObject: {fileID: 1388358283}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 61314be54dd0b5349b466826321f4b22, type: 3}
+  m_Script: {fileID: 11500000, guid: ea244f050c3145efbe2ee6049636e4b9, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::KnightController
+  m_EditorClassIdentifier: Assembly-CSharp::DebuggerController
   target: {fileID: 1076982203}
   targetHero: {fileID: 1076982204}
   meleeAttackPoint: {fileID: 1575556124}
@@ -3403,14 +3419,14 @@ MonoBehaviour:
   runtime: {fileID: 1076982208}
   meleeTelegraph: {fileID: 1959540559}
   projectileTelegraph: {fileID: 1869886636}
-  projectileTelegraphReferenceLength: 4.05
   verboseTelegraphLogging: 1
   meleeTriggerDistance: 2.2
   meleeRadius: 1.1
-  meleeDamage: 25
+  meleeDamage: 20
   meleeWindup: 0.4
   rangedWindup: 0.25
   guardDuration: 0.9
+  meleeCountBeforeGuard: 2
   guardIndicator: {fileID: 2134043678}
   guardIndicatorOffsetX: 0.5
   recoveryDuration: 0.3
@@ -3472,9 +3488,9 @@ MonoBehaviour:
   resultTitle: {fileID: 1528208507}
   resultBody: {fileID: 1179020285}
   restartButton: {fileID: 1142018616}
-  enemyDisplayName: KNIGHT_PROCESS
-  victoryBodyOverride: 
-  nextSceneName: DebuggerBattle
+  enemyDisplayName: DEBUGGER_PROCESS
+  victoryBodyOverride: "DEBUGGER_PROCESS TERMINATED\nSYSTEM STABLE"
+  nextSceneName: 
 --- !u!1 &1448551372
 GameObject:
   m_ObjectHideFlags: 0
@@ -4125,7 +4141,7 @@ MonoBehaviour:
   fillImage: {fileID: 1969009514}
   nameText: {fileID: 901449197}
   valueText: {fileID: 1330101210}
-  displayName: GOLEM_PROCESS
+  displayName: DEBUGGER_PROCESS
 --- !u!114 &1811331619
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -4551,54 +4567,6 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1904437414}
   m_CullTransparentMesh: 1
---- !u!1 &1914110096
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 1914110098}
-  - component: {fileID: 1914110097}
-  m_Layer: 0
-  m_Name: PlayerPatternTracker
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!114 &1914110097
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1914110096}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 9dd2c3b4510405a48926960924db97ca, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::PlayerPatternTracker
-  attackHistoryCapacity: 5
-  guardHistoryCapacity: 4
-  backDashDetectionCount: 3
-  verbosePatternLogging: 1
---- !u!4 &1914110098
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1914110096}
-  serializedVersion: 2
-  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 3.79636, y: 0.56944, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 55285520}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1959540559
 GameObject:
   m_ObjectHideFlags: 0
