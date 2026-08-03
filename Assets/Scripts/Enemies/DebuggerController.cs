@@ -95,6 +95,26 @@ public sealed class DebuggerController : MonoBehaviour
     [SerializeField, Min(0.01f)]
     private float forcedRangedBackstepDuration = 0.18f;
 
+    [Header("Advance")]
+    [SerializeField, Min(0.01f)]
+    private float advanceSpeed = 3.5f;
+
+    [SerializeField, Min(0f)]
+    private float advanceStopDistance = 2.4f;
+
+    [SerializeField, Min(0.01f)]
+    private float advanceMaxDuration = 1f;
+
+    [SerializeField, Min(0f)]
+    private float advanceRecovery = 0.1f;
+
+    [SerializeField]
+    private bool advanceAfterProjectile = true;
+
+    [Header("Arena Leash")]
+    [SerializeField, Min(0f)]
+    private float homeLeashDistance = 5.5f;
+
     [Header("Telegraph Colors")]
     [SerializeField]
     private Color attackColor =
@@ -119,6 +139,8 @@ public sealed class DebuggerController : MonoBehaviour
     private int nextProjectileAttackSignalId;
     private int activeProjectileAttackSignalId;
     private KnightProjectile activeProjectile;
+    private bool shouldAdvanceNext;
+    private float homeX;
 
     private void Awake()
     {
@@ -135,6 +157,7 @@ public sealed class DebuggerController : MonoBehaviour
         }
 
         body = GetComponent<Rigidbody2D>();
+        homeX = transform.position.x;
 
         if (targetHero == null &&
             target != null)
@@ -221,14 +244,47 @@ public sealed class DebuggerController : MonoBehaviour
 
         FaceTarget();
 
-        if (Time.time < nextActionTime)
-            return;
-
         float distance =
             Vector2.Distance(
                 transform.position,
                 target.position
             );
+
+        if (NeedsArenaRecovery())
+        {
+            shouldAdvanceNext = false;
+            LogActionSelection(distance, "ARENA RECOVERY");
+            StartAction(
+                "ARENA_RECOVERY",
+                AdvanceTowardHeroRoutine(
+                    AdvanceReason.ArenaRecovery
+                )
+            );
+
+            return;
+        }
+
+        if (Time.time < nextActionTime)
+            return;
+
+        if (shouldAdvanceNext)
+        {
+            shouldAdvanceNext = false;
+
+            if (GetHorizontalTargetDistance() >
+                advanceStopDistance)
+            {
+                LogActionSelection(distance, "ADVANCE");
+                StartAction(
+                    "ADVANCE",
+                    AdvanceTowardHeroRoutine(
+                        AdvanceReason.PostProjectile
+                    )
+                );
+
+                return;
+            }
+        }
 
         if (distance <= meleeTriggerDistance)
         {
@@ -353,7 +409,8 @@ public sealed class DebuggerController : MonoBehaviour
         if (!SpawnProjectile(attackSignalId))
         {
             ResolveProjectileAttackSignal(
-                attackSignalId
+                attackSignalId,
+                scheduleAdvance: false
             );
         }
 
@@ -506,6 +563,102 @@ public sealed class DebuggerController : MonoBehaviour
         ReleaseActionLock();
     }
 
+    private IEnumerator AdvanceTowardHeroRoutine(
+        AdvanceReason advanceReason)
+    {
+        if (combatState != null)
+        {
+            combatState.ResetState();
+        }
+
+        HideAllTelegraphs();
+        HideGuardIndicator();
+        RestoreNormalColor();
+        LogAdvanceEnter(advanceReason);
+
+        string exitReason = "TIMEOUT";
+        float elapsed = 0f;
+
+        if (body == null)
+        {
+            exitReason = "RIGIDBODY_MISSING";
+        }
+        else
+        {
+            while (elapsed < advanceMaxDuration)
+            {
+                if (runtime == null || !runtime.IsRunning)
+                {
+                    exitReason = "PROGRAM_STOPPED";
+                    break;
+                }
+
+                if (target == null ||
+                    !target.gameObject.activeInHierarchy)
+                {
+                    exitReason = "HERO_DEAD";
+                    break;
+                }
+
+                float destinationX =
+                    advanceReason ==
+                    AdvanceReason.ArenaRecovery
+                        ? homeX
+                        : target.position.x;
+
+                float stopDistance =
+                    advanceReason ==
+                    AdvanceReason.ArenaRecovery
+                        ? 0.01f
+                        : advanceStopDistance;
+
+                float deltaX =
+                    destinationX - body.position.x;
+
+                float remainingDistance =
+                    Mathf.Abs(deltaX);
+
+                if (remainingDistance <= stopDistance)
+                {
+                    exitReason = "DISTANCE_REACHED";
+                    break;
+                }
+
+                float direction = Mathf.Sign(deltaX);
+                FaceDirection(direction);
+
+                float movementDistance =
+                    remainingDistance - stopDistance;
+
+                float fixedDeltaTime =
+                    Mathf.Max(0.001f, Time.fixedDeltaTime);
+
+                float speed = Mathf.Min(
+                    advanceSpeed,
+                    movementDistance / fixedDeltaTime
+                );
+
+                body.linearVelocity =
+                    new Vector2(
+                        direction * speed,
+                        body.linearVelocity.y
+                    );
+
+                yield return new WaitForFixedUpdate();
+                elapsed += Time.fixedDeltaTime;
+            }
+
+            StopHorizontalMovement();
+        }
+
+        LogAdvanceExit(exitReason);
+
+        yield return new WaitForSeconds(advanceRecovery);
+        yield return WaitForActionCooldown();
+
+        FinishAction();
+    }
+
     private IEnumerator WaitForActionCooldown()
     {
         nextActionTime =
@@ -565,19 +718,56 @@ public sealed class DebuggerController : MonoBehaviour
         float direction =
             GetBackstepDirection();
 
-        float speed =
-            forcedRangedBackstepDistance /
-            forcedRangedBackstepDuration;
+        float requestedX =
+            body.position.x +
+            direction * forcedRangedBackstepDistance;
 
-        body.linearVelocity =
-            new Vector2(
-                direction * speed,
-                body.linearVelocity.y
+        float destinationX = Mathf.Clamp(
+            requestedX,
+            homeX - homeLeashDistance,
+            homeX + homeLeashDistance
+        );
+
+        if (verboseTelegraphLogging &&
+            !Mathf.Approximately(requestedX, destinationX))
+        {
+            Debug.Log(
+                "DEBUGGER BACKSTEP CLAMPED\n" +
+                $"requestedX={requestedX:F2}\n" +
+                $"clampedX={destinationX:F2}\n" +
+                $"homeX={homeX:F2}"
+            );
+        }
+
+        float elapsed = 0f;
+
+        while (elapsed < forcedRangedBackstepDuration)
+        {
+            float deltaX = destinationX - body.position.x;
+
+            if (Mathf.Abs(deltaX) <= 0.01f)
+            {
+                break;
+            }
+
+            float fixedDeltaTime =
+                Mathf.Max(0.001f, Time.fixedDeltaTime);
+
+            float speed = Mathf.Min(
+                forcedRangedBackstepDistance /
+                forcedRangedBackstepDuration,
+                Mathf.Abs(deltaX) / fixedDeltaTime
             );
 
-        yield return new WaitForSeconds(
-            forcedRangedBackstepDuration
-        );
+            body.linearVelocity =
+                new Vector2(
+                    Mathf.Sign(deltaX) * speed,
+                    body.linearVelocity.y
+                );
+
+            yield return new WaitForFixedUpdate();
+            elapsed += Time.fixedDeltaTime;
+        }
 
         StopForcedRangedBackstep();
     }
@@ -595,6 +785,11 @@ public sealed class DebuggerController : MonoBehaviour
     }
 
     private void StopForcedRangedBackstep()
+    {
+        StopHorizontalMovement();
+    }
+
+    private void StopHorizontalMovement()
     {
         if (body == null)
             return;
@@ -768,7 +963,8 @@ public sealed class DebuggerController : MonoBehaviour
     }
 
     private void ResolveProjectileAttackSignal(
-        int attackSignalId)
+        int attackSignalId,
+        bool scheduleAdvance = true)
     {
         if (attackSignalId == 0 ||
             attackSignalId !=
@@ -786,6 +982,11 @@ public sealed class DebuggerController : MonoBehaviour
         }
 
         RestoreNormalColor();
+
+        if (scheduleAdvance && advanceAfterProjectile)
+        {
+            shouldAdvanceNext = true;
+        }
     }
 
     private void HideAllTelegraphs()
@@ -858,12 +1059,18 @@ public sealed class DebuggerController : MonoBehaviour
             return;
         }
 
-        Vector3 scale =
-            transform.localScale;
+        FaceDirection(Mathf.Sign(direction));
+    }
 
-        scale.x =
-            originalScaleX *
-            Mathf.Sign(direction);
+    private void FaceDirection(float direction)
+    {
+        if (Mathf.Approximately(direction, 0f))
+            return;
+
+        Vector3 scale = transform.localScale;
+
+        scale.x = originalScaleX *
+                  Mathf.Sign(direction);
 
         transform.localScale = scale;
     }
@@ -940,6 +1147,11 @@ public sealed class DebuggerController : MonoBehaviour
     private void CancelCurrentAction(
         string reason = "CANCELLED")
     {
+        if (IsAdvanceAction())
+        {
+            LogAdvanceExit(GetAdvanceCancelReason(reason));
+        }
+
         if (actionRoutine != null)
         {
             if (isRangedAction)
@@ -956,6 +1168,7 @@ public sealed class DebuggerController : MonoBehaviour
         ReleaseActionLock();
         ClearProjectileTargetLock();
         InvalidateProjectileAttackSignal();
+        shouldAdvanceNext = false;
 
         if (activeProjectile != null)
         {
@@ -973,5 +1186,89 @@ public sealed class DebuggerController : MonoBehaviour
         HideAllTelegraphs();
         HideGuardIndicator();
         RestoreNormalColor();
+    }
+
+    private bool NeedsArenaRecovery()
+    {
+        return Mathf.Abs(transform.position.x - homeX) >
+               homeLeashDistance;
+    }
+
+    private float GetHorizontalTargetDistance()
+    {
+        if (target == null)
+            return 0f;
+
+        return Mathf.Abs(
+            target.position.x - transform.position.x
+        );
+    }
+
+    private bool IsAdvanceAction()
+    {
+        return activeActionName == "ADVANCE" ||
+               activeActionName == "ARENA_RECOVERY";
+    }
+
+    private void LogAdvanceEnter(
+        AdvanceReason advanceReason)
+    {
+        if (!verboseTelegraphLogging)
+            return;
+
+        Debug.Log(
+            "DEBUGGER ADVANCE: ENTER\n" +
+            $"currentX={transform.position.x:F2}\n" +
+            $"heroX={GetTargetX():F2}\n" +
+            $"homeX={homeX:F2}\n" +
+            $"reason={GetAdvanceReasonLabel(advanceReason)}"
+        );
+    }
+
+    private void LogAdvanceExit(string reason)
+    {
+        if (!verboseTelegraphLogging)
+            return;
+
+        Debug.Log(
+            "DEBUGGER ADVANCE: EXIT\n" +
+            $"currentX={transform.position.x:F2}\n" +
+            $"heroX={GetTargetX():F2}\n" +
+            $"distance={GetHorizontalTargetDistance():F2}\n" +
+            $"reason={reason}"
+        );
+    }
+
+    private float GetTargetX()
+    {
+        return target == null
+            ? 0f
+            : target.position.x;
+    }
+
+    private string GetAdvanceCancelReason(string reason)
+    {
+        return reason switch
+        {
+            "PROGRAM STOPPED" => "PROGRAM_STOPPED",
+            "DEBUGGER DISABLED" => "DEBUGGER_DISABLED",
+            "TARGET INACTIVE" => "HERO_DEAD",
+            _ => reason
+        };
+    }
+
+    private string GetAdvanceReasonLabel(
+        AdvanceReason advanceReason)
+    {
+        return advanceReason ==
+               AdvanceReason.ArenaRecovery
+            ? "ARENA_RECOVERY"
+            : "POST_PROJECTILE";
+    }
+
+    private enum AdvanceReason
+    {
+        PostProjectile,
+        ArenaRecovery
     }
 }
