@@ -8,6 +8,7 @@ public sealed class ProgramRuntime : MonoBehaviour
     [SerializeField] private HeroActionExecutor executor;
     [SerializeField] private Transform enemy;
     [SerializeField] private EnemyCombatState enemyState;
+    [SerializeField] private PlayerPatternTracker patternTracker;
 
     [Header("Runtime")]
     [SerializeField, Min(0.02f)]
@@ -33,6 +34,21 @@ public sealed class ProgramRuntime : MonoBehaviour
         if (executor == null)
         {
             executor = GetComponent<HeroActionExecutor>();
+        }
+
+        if (patternTracker == null)
+        {
+            patternTracker =
+                GetComponent<PlayerPatternTracker>();
+        }
+
+        if (patternTracker == null)
+        {
+            Debug.LogWarning(
+                "ProgramRuntime: Player Pattern Tracker " +
+                "is not assigned. Tracking is disabled.",
+                this
+            );
         }
     }
 
@@ -61,6 +77,13 @@ public sealed class ProgramRuntime : MonoBehaviour
         {
             StopProgram();
             return;
+        }
+
+        if (patternTracker != null)
+        {
+            patternTracker.ObserveEnemyState(
+                enemyState
+            );
         }
 
         evaluationTimer -= Time.deltaTime;
@@ -189,6 +212,14 @@ public sealed class ProgramRuntime : MonoBehaviour
             if (executed)
             {
                 Debug.Log($"EXECUTE: {rule.Source}");
+
+                if (patternTracker != null)
+                {
+                    patternTracker.RecordSuccessfulAction(
+                        rule.Action,
+                        enemyState
+                    );
+                }
             }
 
             // 첫 번째로 조건이 참인 규칙이
