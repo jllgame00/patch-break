@@ -95,6 +95,22 @@ public sealed class RuntimeConsoleUI : MonoBehaviour
         SetButtonLabel("PATCH APPLIED");
     }
 
+    public void AppendSystemMessage(string message)
+    {
+        if (outputText == null ||
+            string.IsNullOrWhiteSpace(message))
+        {
+            return;
+        }
+
+        string formattedMessage = $"> {message}";
+
+        outputText.text =
+            string.IsNullOrWhiteSpace(outputText.text)
+                ? formattedMessage
+                : $"{outputText.text}\n{formattedMessage}";
+    }
+
     private void HandleCompileClicked()
     {
         bool isLivePatch =

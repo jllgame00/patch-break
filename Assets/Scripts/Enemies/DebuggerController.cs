@@ -36,12 +36,21 @@ public sealed class DebuggerController : MonoBehaviour
     [SerializeField]
     private ProgramRuntime runtime;
 
+    [SerializeField]
+    private PlayerPatternTracker patternTracker;
+
+    [SerializeField]
+    private RuntimeConsoleUI runtimeConsole;
+
     [Header("Telegraphs")]
     [SerializeField]
     private GameObject meleeTelegraph;
 
     [SerializeField]
     private GameObject projectileTelegraph;
+
+    [SerializeField]
+    private LineRenderer predictiveSweepTelegraph;
 
     [SerializeField, Min(0.01f)]
     private float projectileTelegraphReferenceLength =
@@ -115,6 +124,39 @@ public sealed class DebuggerController : MonoBehaviour
     [SerializeField, Min(0f)]
     private float homeLeashDistance = 5.5f;
 
+    [Header("Back Dash Analysis")]
+    [SerializeField, Min(0f)]
+    private float analysisLineDelay = 0.35f;
+
+    [SerializeField, Min(0f)]
+    private float analysisEndDelay = 0.25f;
+
+    [Header("Predictive Retreat Sweep")]
+    [SerializeField, Min(0.01f)]
+    private float predictedDashDistance = 1.8f;
+
+    [SerializeField, Min(0f)]
+    private float predictiveDangerPadding = 0.35f;
+
+    [SerializeField, Min(0.01f)]
+    private float predictiveDangerHeight = 2f;
+
+    [SerializeField, Min(1)]
+    private int predictiveDamage = 25;
+
+    [SerializeField, Min(0.01f)]
+    private float predictiveWindup = 0.38f;
+
+    [SerializeField, Min(0f)]
+    private float predictiveRecovery = 0.25f;
+
+    [SerializeField, Min(0f)]
+    private float predictiveCooldown = 1.4f;
+
+    [SerializeField]
+    private Color predictiveTelegraphColor =
+        new(0.8f, 0.15f, 1f, 0.45f);
+
     [Header("Telegraph Colors")]
     [SerializeField]
     private Color attackColor =
@@ -141,6 +183,18 @@ public sealed class DebuggerController : MonoBehaviour
     private KnightProjectile activeProjectile;
     private bool shouldAdvanceNext;
     private float homeX;
+    private bool backDashAnalysisPending;
+    private bool backDashAdaptationEnabled;
+    private bool backDashAnalysisPlayed;
+    private bool predictiveStrikeReady;
+    private float nextPredictiveStrikeTime;
+    private float predictiveDangerMinX;
+    private float predictiveDangerMaxX;
+    private float predictiveDangerCenterX;
+    private float predictiveDangerCenterY;
+    private float predictiveDangerWidth;
+    private bool createdPredictiveTelegraphAtRuntime;
+    private Material predictiveTelegraphMaterial;
 
     private void Awake()
     {
@@ -165,6 +219,19 @@ public sealed class DebuggerController : MonoBehaviour
             targetHero =
                 target.GetComponent<
                     HeroController>();
+        }
+
+        if (patternTracker == null &&
+            target != null)
+        {
+            patternTracker =
+                target.GetComponent<PlayerPatternTracker>();
+        }
+
+        if (runtimeConsole == null)
+        {
+            runtimeConsole = UnityEngine.Object
+                .FindFirstObjectByType<RuntimeConsoleUI>();
         }
 
         originalScaleX =
@@ -200,6 +267,7 @@ public sealed class DebuggerController : MonoBehaviour
             );
         }
 
+        EnsurePredictiveSweepTelegraph();
         HideAllTelegraphs();
         HideGuardIndicator();
     }
@@ -218,6 +286,8 @@ public sealed class DebuggerController : MonoBehaviour
             CancelCurrentAction("TARGET INACTIVE");
             return;
         }
+
+        UpdateBackDashAdaptation();
 
         if (isActing)
         {
@@ -250,6 +320,16 @@ public sealed class DebuggerController : MonoBehaviour
                 target.position
             );
 
+        if (backDashAnalysisPending)
+        {
+            StartAction(
+                "BACK_DASH_ANALYSIS",
+                BackDashAnalysisRoutine()
+            );
+
+            return;
+        }
+
         if (NeedsArenaRecovery())
         {
             shouldAdvanceNext = false;
@@ -266,6 +346,27 @@ public sealed class DebuggerController : MonoBehaviour
 
         if (Time.time < nextActionTime)
             return;
+
+        if (backDashAdaptationEnabled &&
+            Time.time >= nextPredictiveStrikeTime)
+        {
+            predictiveStrikeReady = true;
+        }
+
+        if (predictiveStrikeReady)
+        {
+            predictiveStrikeReady = false;
+            LogActionSelection(
+                distance,
+                "PREDICTIVE RETREAT SWEEP"
+            );
+            StartAction(
+                "PREDICTIVE_RETREAT_SWEEP",
+                PredictiveRetreatSweepRoutine()
+            );
+
+            return;
+        }
 
         if (shouldAdvanceNext)
         {
@@ -563,6 +664,217 @@ public sealed class DebuggerController : MonoBehaviour
         ReleaseActionLock();
     }
 
+    private IEnumerator BackDashAnalysisRoutine()
+    {
+        backDashAnalysisPending = false;
+
+        if (combatState != null)
+        {
+            combatState.ResetState();
+        }
+
+        StopHorizontalMovement();
+        HideAllTelegraphs();
+        HideGuardIndicator();
+        RestoreNormalColor();
+
+        Debug.Log("DEBUGGER ANALYSIS: ENTER");
+
+        AppendAnalysisMessage(
+            "ANALYZING COMBAT RESPONSE..."
+        );
+
+        yield return new WaitForSeconds(analysisLineDelay);
+
+        AppendAnalysisMessage(
+            "REPEATED RETREAT DETECTED"
+        );
+
+        yield return new WaitForSeconds(analysisLineDelay);
+
+        AppendAnalysisMessage(
+            "COUNTER PATCH INSTALLED"
+        );
+
+        yield return new WaitForSeconds(analysisLineDelay);
+
+        backDashAdaptationEnabled = true;
+        predictiveStrikeReady = true;
+        nextPredictiveStrikeTime = Time.time;
+
+        AppendAnalysisMessage(
+            "RETREAT VECTOR PREDICTION: ACTIVE"
+        );
+
+        Debug.Log(
+            "DEBUGGER ADAPTATION ENABLED\n" +
+            "profile=BACK_DASH_DEPENDENCY\n" +
+            "counter=PREDICTIVE_RETREAT_SWEEP"
+        );
+
+        yield return new WaitForSeconds(analysisEndDelay);
+
+        FinishAction();
+    }
+
+    private IEnumerator PredictiveRetreatSweepRoutine()
+    {
+        if (!TryCommitPredictiveSweep())
+        {
+            FinishAction();
+            yield break;
+        }
+
+        InvalidateProjectileAttackSignal();
+        combatState.SetAttacking(true);
+        SetColor(attackColor);
+        HideGuardIndicator();
+        HideAllTelegraphs();
+        ShowPredictiveSweepTelegraph();
+
+        yield return new WaitForSeconds(predictiveWindup);
+
+        PerformPredictiveRetreatSweep();
+        HidePredictiveSweepTelegraph();
+
+        combatState.SetAttacking(false);
+        RestoreNormalColor();
+
+        nextPredictiveStrikeTime =
+            Time.time + predictiveCooldown;
+
+        yield return new WaitForSeconds(predictiveRecovery);
+        yield return WaitForActionCooldown();
+
+        FinishAction();
+    }
+
+    private bool TryCommitPredictiveSweep()
+    {
+        if (target == null)
+            return false;
+
+        float heroStartX = target.position.x;
+        float awayDirection =
+            heroStartX - transform.position.x;
+
+        if (Mathf.Abs(awayDirection) < 0.001f)
+        {
+            float facingDirection =
+                Mathf.Sign(transform.localScale.x);
+
+            awayDirection =
+                Mathf.Approximately(facingDirection, 0f)
+                    ? 1f
+                    : -facingDirection;
+        }
+        else
+        {
+            awayDirection = Mathf.Sign(awayDirection);
+        }
+
+        float predictedBackDashX =
+            heroStartX +
+            awayDirection * predictedDashDistance;
+
+        predictiveDangerMinX = Mathf.Min(
+            heroStartX,
+            predictedBackDashX
+        ) - predictiveDangerPadding;
+
+        predictiveDangerMaxX = Mathf.Max(
+            heroStartX,
+            predictedBackDashX
+        ) + predictiveDangerPadding;
+
+        predictiveDangerCenterX =
+            (predictiveDangerMinX +
+             predictiveDangerMaxX) * 0.5f;
+
+        predictiveDangerCenterY = target.position.y;
+        predictiveDangerWidth = Mathf.Max(
+            0.01f,
+            predictiveDangerMaxX - predictiveDangerMinX
+        );
+
+        Debug.Log(
+            "DEBUGGER PREDICTIVE SWEEP: TARGET LOCK\n" +
+            $"heroStartX={heroStartX:F2}\n" +
+            $"predictedBackDashX={predictedBackDashX:F2}\n" +
+            $"dangerMinX={predictiveDangerMinX:F2}\n" +
+            $"dangerMaxX={predictiveDangerMaxX:F2}"
+        );
+
+        return true;
+    }
+
+    private void PerformPredictiveRetreatSweep()
+    {
+        Collider2D[] hits = Physics2D.OverlapBoxAll(
+            new Vector2(
+                predictiveDangerCenterX,
+                predictiveDangerCenterY
+            ),
+            new Vector2(
+                predictiveDangerWidth,
+                predictiveDangerHeight
+            ),
+            0f,
+            targetLayer
+        );
+
+        string result = "MISS";
+        HeroController hitHero = targetHero;
+
+        foreach (Collider2D hit in hits)
+        {
+            Health health =
+                hit.GetComponentInParent<Health>();
+
+            if (health == null)
+                continue;
+
+            hitHero = hit.GetComponentInParent<
+                HeroController>();
+
+            if (hitHero != null &&
+                hitHero.IsInvulnerable)
+            {
+                result = "EVADED";
+                break;
+            }
+
+            health.TakeDamage(predictiveDamage);
+            SpawnHitEffect(
+                hit.ClosestPoint(
+                    new Vector2(
+                        predictiveDangerCenterX,
+                        predictiveDangerCenterY
+                    )
+                )
+            );
+
+            result = "HIT";
+            break;
+        }
+
+        bool heroIsDashing =
+            hitHero != null && hitHero.IsDashing;
+
+        bool heroIsInvulnerable =
+            hitHero != null && hitHero.IsInvulnerable;
+
+        Debug.Log(
+            "DEBUGGER PREDICTIVE SWEEP: IMPACT\n" +
+            $"heroX={GetTargetX():F2}\n" +
+            $"dangerMinX={predictiveDangerMinX:F2}\n" +
+            $"dangerMaxX={predictiveDangerMaxX:F2}\n" +
+            $"heroIsDashing={heroIsDashing}\n" +
+            $"heroIsInvulnerable={heroIsInvulnerable}\n" +
+            $"result={result}"
+        );
+    }
+
     private IEnumerator AdvanceTowardHeroRoutine(
         AdvanceReason advanceReason)
     {
@@ -798,6 +1110,95 @@ public sealed class DebuggerController : MonoBehaviour
             new Vector2(0f, body.linearVelocity.y);
     }
 
+    private void EnsurePredictiveSweepTelegraph()
+    {
+        if (predictiveSweepTelegraph != null)
+            return;
+
+        GameObject telegraphObject = new(
+            "PredictiveSweepTelegraph"
+        );
+
+        telegraphObject.transform.SetParent(
+            transform,
+            false
+        );
+
+        predictiveSweepTelegraph =
+            telegraphObject.AddComponent<LineRenderer>();
+
+        predictiveSweepTelegraph.useWorldSpace = true;
+        predictiveSweepTelegraph.positionCount = 2;
+        predictiveSweepTelegraph.numCapVertices = 0;
+        predictiveSweepTelegraph.numCornerVertices = 0;
+        predictiveSweepTelegraph.sortingOrder = 1;
+
+        Shader shader = Shader.Find("Sprites/Default");
+
+        if (shader != null)
+        {
+            predictiveTelegraphMaterial = new Material(shader);
+            predictiveSweepTelegraph.material =
+                predictiveTelegraphMaterial;
+        }
+        else
+        {
+            Debug.LogWarning(
+                "Debugger predictive sweep telegraph shader " +
+                "is missing.",
+                this
+            );
+        }
+
+        createdPredictiveTelegraphAtRuntime = true;
+        HidePredictiveSweepTelegraph();
+    }
+
+    private void ShowPredictiveSweepTelegraph()
+    {
+        EnsurePredictiveSweepTelegraph();
+
+        if (predictiveSweepTelegraph == null)
+            return;
+
+        predictiveSweepTelegraph.startWidth =
+            predictiveDangerHeight;
+        predictiveSweepTelegraph.endWidth =
+            predictiveDangerHeight;
+        predictiveSweepTelegraph.startColor =
+            predictiveTelegraphColor;
+        predictiveSweepTelegraph.endColor =
+            predictiveTelegraphColor;
+
+        predictiveSweepTelegraph.SetPosition(
+            0,
+            new Vector3(
+                predictiveDangerMinX,
+                predictiveDangerCenterY,
+                0f
+            )
+        );
+
+        predictiveSweepTelegraph.SetPosition(
+            1,
+            new Vector3(
+                predictiveDangerMaxX,
+                predictiveDangerCenterY,
+                0f
+            )
+        );
+
+        predictiveSweepTelegraph.gameObject.SetActive(true);
+    }
+
+    private void HidePredictiveSweepTelegraph()
+    {
+        if (predictiveSweepTelegraph != null)
+        {
+            predictiveSweepTelegraph.gameObject.SetActive(false);
+        }
+    }
+
     private void ShowMeleeTelegraph()
     {
         if (meleeTelegraph == null)
@@ -1009,6 +1410,8 @@ public sealed class DebuggerController : MonoBehaviour
             projectileTelegraph.SetActive(false);
         }
 
+        HidePredictiveSweepTelegraph();
+
         if (!verboseTelegraphLogging)
             return;
 
@@ -1133,6 +1536,15 @@ public sealed class DebuggerController : MonoBehaviour
         CancelCurrentAction("DEBUGGER DISABLED");
     }
 
+    private void OnDestroy()
+    {
+        if (createdPredictiveTelegraphAtRuntime &&
+            predictiveTelegraphMaterial != null)
+        {
+            Destroy(predictiveTelegraphMaterial);
+        }
+    }
+
     private void OnDrawGizmosSelected()
     {
         if (meleeAttackPoint == null)
@@ -1169,6 +1581,8 @@ public sealed class DebuggerController : MonoBehaviour
         ClearProjectileTargetLock();
         InvalidateProjectileAttackSignal();
         shouldAdvanceNext = false;
+        backDashAnalysisPending = false;
+        predictiveStrikeReady = false;
 
         if (activeProjectile != null)
         {
@@ -1186,6 +1600,35 @@ public sealed class DebuggerController : MonoBehaviour
         HideAllTelegraphs();
         HideGuardIndicator();
         RestoreNormalColor();
+    }
+
+    private void UpdateBackDashAdaptation()
+    {
+        if (backDashAnalysisPlayed ||
+            patternTracker == null ||
+            patternTracker.CurrentProfile !=
+            PlayerPatternProfile.BackDashDependency)
+        {
+            return;
+        }
+
+        backDashAnalysisPlayed = true;
+        backDashAnalysisPending = true;
+
+        Debug.Log(
+            "DEBUGGER ADAPTATION: PROFILE RECEIVED\n" +
+            "profile=BACK_DASH_DEPENDENCY"
+        );
+    }
+
+    private void AppendAnalysisMessage(string message)
+    {
+        if (runtimeConsole != null)
+        {
+            runtimeConsole.AppendSystemMessage(message);
+        }
+
+        Debug.Log($"DEBUGGER ANALYSIS: {message}");
     }
 
     private bool NeedsArenaRecovery()
