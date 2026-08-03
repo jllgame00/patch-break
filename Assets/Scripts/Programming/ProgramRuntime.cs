@@ -20,9 +20,22 @@ public sealed class ProgramRuntime : MonoBehaviour
     [SerializeField]
     private bool disableManualInputOnStart = true;
 
+    [Header("Combat Window Gate")]
+    [SerializeField]
+    private bool verboseCombatWindowGate;
+
     private readonly List<BattleRule> compiledRules = new();
 
     private float evaluationTimer;
+    private CombatObservationContext consumedWindowContext =
+        CombatObservationContext.None;
+    private int consumedWindowId = -1;
+    private CombatObservationContext lastLoggedWindowContext =
+        CombatObservationContext.None;
+    private int lastLoggedWindowId = -1;
+    private CombatObservationContext suppressedWindowContext =
+        CombatObservationContext.None;
+    private int suppressedWindowId = -1;
 
     public bool IsRunning { get; private set; }
     public Transform Target => enemy;
@@ -49,6 +62,20 @@ public sealed class ProgramRuntime : MonoBehaviour
                 "is not assigned. Tracking is disabled.",
                 this
             );
+        }
+        else
+        {
+            patternTracker.TrackingReset +=
+                ResetCombatWindowGate;
+        }
+    }
+
+    private void OnDestroy()
+    {
+        if (patternTracker != null)
+        {
+            patternTracker.TrackingReset -=
+                ResetCombatWindowGate;
         }
     }
 
@@ -197,6 +224,24 @@ public sealed class ProgramRuntime : MonoBehaviour
     
     private void EvaluateProgram()
     {
+        if (TryGetActiveCombatWindow(
+                out CombatObservationContext activeContext,
+                out int activeWindowId))
+        {
+            LogNewCombatWindow(activeContext, activeWindowId);
+
+            if (IsCombatWindowConsumed(
+                    activeContext,
+                    activeWindowId))
+            {
+                LogSuppressedAutoAction(
+                    activeContext,
+                    activeWindowId
+                );
+                return;
+            }
+        }
+
         foreach (BattleRule rule in compiledRules)
         {
             if (!CheckCondition(rule.Condition))
@@ -215,6 +260,17 @@ public sealed class ProgramRuntime : MonoBehaviour
 
                 if (patternTracker != null)
                 {
+                    if (TryGetActiveCombatWindow(
+                            out CombatObservationContext context,
+                            out int windowId))
+                    {
+                        ConsumeCombatWindow(
+                            context,
+                            windowId,
+                            rule.Action
+                        );
+                    }
+
                     patternTracker.RecordSuccessfulAction(
                         rule.Action,
                         enemyState
@@ -226,6 +282,127 @@ public sealed class ProgramRuntime : MonoBehaviour
             // 이번 평가 주기를 차지한다.
             return;
         }
+    }
+
+    private bool TryGetActiveCombatWindow(
+        out CombatObservationContext context,
+        out int windowId)
+    {
+        context = CombatObservationContext.None;
+        windowId = -1;
+
+        return patternTracker != null &&
+               patternTracker.TryGetActiveWindow(
+                   out context,
+                   out windowId
+               );
+    }
+
+    private bool IsCombatWindowConsumed(
+        CombatObservationContext context,
+        int windowId)
+    {
+        return consumedWindowContext == context &&
+               consumedWindowId == windowId;
+    }
+
+    private void ConsumeCombatWindow(
+        CombatObservationContext context,
+        int windowId,
+        HeroActionType action)
+    {
+        consumedWindowContext = context;
+        consumedWindowId = windowId;
+
+        if (!verboseCombatWindowGate)
+            return;
+
+        Debug.Log(
+            "PROGRAM WINDOW GATE: CONSUMED\n" +
+            $"context={GetCombatContextLabel(context)}\n" +
+            $"window={windowId}\n" +
+            $"action={GetActionLabel(action)}"
+        );
+    }
+
+    private void LogNewCombatWindow(
+        CombatObservationContext context,
+        int windowId)
+    {
+        if (!verboseCombatWindowGate ||
+            (lastLoggedWindowContext == context &&
+             lastLoggedWindowId == windowId))
+        {
+            return;
+        }
+
+        lastLoggedWindowContext = context;
+        lastLoggedWindowId = windowId;
+
+        Debug.Log(
+            "PROGRAM WINDOW GATE: NEW WINDOW\n" +
+            $"context={GetCombatContextLabel(context)}\n" +
+            $"window={windowId}"
+        );
+    }
+
+    private void LogSuppressedAutoAction(
+        CombatObservationContext context,
+        int windowId)
+    {
+        if (!verboseCombatWindowGate ||
+            (suppressedWindowContext == context &&
+             suppressedWindowId == windowId))
+        {
+            return;
+        }
+
+        suppressedWindowContext = context;
+        suppressedWindowId = windowId;
+
+        Debug.Log(
+            "PROGRAM WINDOW GATE: AUTO ACTION SUPPRESSED\n" +
+            $"context={GetCombatContextLabel(context)}\n" +
+            $"window={windowId}"
+        );
+    }
+
+    private void ResetCombatWindowGate()
+    {
+        consumedWindowContext =
+            CombatObservationContext.None;
+        consumedWindowId = -1;
+        lastLoggedWindowContext =
+            CombatObservationContext.None;
+        lastLoggedWindowId = -1;
+        suppressedWindowContext =
+            CombatObservationContext.None;
+        suppressedWindowId = -1;
+    }
+
+    private string GetCombatContextLabel(
+        CombatObservationContext context)
+    {
+        return context switch
+        {
+            CombatObservationContext.EnemyAttacking =>
+                "ATTACK",
+            CombatObservationContext.EnemyGuarding =>
+                "GUARD",
+            _ => "NONE"
+        };
+    }
+
+    private string GetActionLabel(HeroActionType action)
+    {
+        return action switch
+        {
+            HeroActionType.DashBack => "DASH_BACK",
+            HeroActionType.DashForward => "DASH_FORWARD",
+            HeroActionType.Slash => "SLASH",
+            HeroActionType.Approach => "APPROACH",
+            _ => "NONE"
+        };
     }
 
     private bool CheckCondition(ConditionType condition)

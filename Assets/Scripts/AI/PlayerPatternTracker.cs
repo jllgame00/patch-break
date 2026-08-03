@@ -47,6 +47,7 @@ public sealed class PlayerPatternTracker : MonoBehaviour
     private int recordedGuardWindowId = -1;
 
     public PlayerPatternProfile CurrentProfile { get; private set; }
+    public event System.Action TrackingReset;
 
     public void ObserveEnemyState(EnemyCombatState targetState)
     {
@@ -103,8 +104,12 @@ public sealed class PlayerPatternTracker : MonoBehaviour
 
         ObserveEnemyState(targetState);
 
-        CombatObservationContext context =
-            GetCurrentContext(targetState);
+        if (!TryGetActiveWindow(
+                out CombatObservationContext context,
+                out _))
+        {
+            return;
+        }
 
         switch (context)
         {
@@ -131,24 +136,31 @@ public sealed class PlayerPatternTracker : MonoBehaviour
         recordedGuardWindowId = -1;
 
         CurrentProfile = PlayerPatternProfile.None;
+
+        TrackingReset?.Invoke();
     }
 
-    private CombatObservationContext GetCurrentContext(
-        EnemyCombatState targetState)
+    public bool TryGetActiveWindow(
+        out CombatObservationContext context,
+        out int windowId)
     {
-        if (targetState != null &&
-            targetState.IsGuarding)
+        if (previousGuarding && guardWindowId > 0)
         {
-            return CombatObservationContext.EnemyGuarding;
+            context = CombatObservationContext.EnemyGuarding;
+            windowId = guardWindowId;
+            return true;
         }
 
-        if (targetState != null &&
-            targetState.IsAttacking)
+        if (previousAttacking && attackWindowId > 0)
         {
-            return CombatObservationContext.EnemyAttacking;
+            context = CombatObservationContext.EnemyAttacking;
+            windowId = attackWindowId;
+            return true;
         }
 
-        return CombatObservationContext.None;
+        context = CombatObservationContext.None;
+        windowId = -1;
+        return false;
     }
 
     private void RecordAttackReaction(
