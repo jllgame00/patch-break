@@ -59,10 +59,15 @@ public sealed class BattleManager : MonoBehaviour
     private void Start()
     {
         if (heroHealth == null ||
-            enemyHealth == null)
+            enemyHealth == null ||
+            resultPanel == null ||
+            resultTitle == null ||
+            resultBody == null ||
+            restartButton == null)
         {
             Debug.LogError(
-                "BattleManager: Health reference is missing."
+                "BattleManager: Required combat or result UI reference " +
+                "is missing."
             );
 
             enabled = false;
@@ -137,7 +142,7 @@ public sealed class BattleManager : MonoBehaviour
         {
             resultTitle.text =
                 victory
-                    ? "BUILD PASSED"
+                    ? "STAGE CLEAR"
                     : "RUNTIME FAILURE";
         }
 
@@ -180,10 +185,10 @@ public sealed class BattleManager : MonoBehaviour
 
         SetRestartButtonLabel(
             !victory
-                ? "RESTART PROGRAM"
+                ? "RETRY"
                 : shouldLoadNextScene
-                    ? "NEXT PROCESS"
-                    : "RUN AGAIN"
+                    ? "NEXT"
+                    : "PLAY AGAIN"
         );
     }
 

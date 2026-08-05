@@ -3494,7 +3494,7 @@ MonoBehaviour:
   restartButton: {fileID: 1142018616}
   enemyDisplayName: DEBUGGER_PROCESS
   victoryBodyOverride: "DEBUGGER_PROCESS TERMINATED\nSYSTEM STABLE"
-  nextSceneName: 
+  nextSceneName: Ending
 --- !u!1 &1448551372
 GameObject:
   m_ObjectHideFlags: 0
