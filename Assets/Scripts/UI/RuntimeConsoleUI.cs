@@ -34,6 +34,7 @@ public sealed class RuntimeConsoleUI : MonoBehaviour
     private int inputDiagnosticFrameWindow = 900;
 
     private bool battleEnded;
+    private bool editorInputLockedExternally;
     private bool hasLoggedEditorStateWrite;
     private bool lastInputInteractable;
     private bool lastInputReadOnly;
@@ -163,6 +164,37 @@ public sealed class RuntimeConsoleUI : MonoBehaviour
             string.IsNullOrWhiteSpace(outputText.text)
                 ? formattedMessage
                 : $"{outputText.text}\n{formattedMessage}";
+    }
+
+    public void SetEditorInputLocked(bool locked)
+    {
+        editorInputLockedExternally = locked;
+
+        if (locked)
+        {
+            StopInputFocus();
+
+            if (codeInput != null)
+            {
+                codeInput.DeactivateInputField();
+            }
+
+            if (EventSystem.current != null &&
+                EventSystem.current.currentSelectedGameObject ==
+                    codeInput?.gameObject)
+            {
+                EventSystem.current.SetSelectedGameObject(null);
+            }
+        }
+
+        if (codeInput != null && compileButton != null)
+        {
+            RefreshEditorInteractivity(
+                locked
+                    ? "EXTERNAL_EDITOR_LOCK"
+                    : "EXTERNAL_EDITOR_UNLOCK"
+            );
+        }
     }
 
     private void HandleCompileClicked()
@@ -761,6 +793,11 @@ public sealed class RuntimeConsoleUI : MonoBehaviour
 
     private bool ShouldEditorBeEditable()
     {
+        if (editorInputLockedExternally)
+        {
+            return false;
+        }
+
         if (battleEnded)
         {
             return false;
