@@ -207,7 +207,9 @@ public sealed class ProgramRuntime : MonoBehaviour
             StopProgram();
         }
 
-        Debug.LogError(message);
+        // Player-authored DSL failures are recoverable gameplay feedback.
+        // Keep them out of Unity's Error Pause path so Live Patch remains editable.
+        Debug.LogWarning(message);
 
         return false;
     }

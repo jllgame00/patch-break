@@ -42,6 +42,12 @@ public sealed class DebuggerController : MonoBehaviour
     [SerializeField]
     private RuntimeConsoleUI runtimeConsole;
 
+    [SerializeField]
+    private LivePatchController livePatchController;
+
+    [SerializeField]
+    private LivePatchUI adaptivePatchHintUI;
+
     [Header("Telegraphs")]
     [SerializeField]
     private GameObject meleeTelegraph;
@@ -157,6 +163,10 @@ public sealed class DebuggerController : MonoBehaviour
     private Color predictiveTelegraphColor =
         new(0.8f, 0.15f, 1f, 0.45f);
 
+    [Header("Adaptive Patch Guidance")]
+    [SerializeField, Min(0f)]
+    private float adaptiveHintGraceDuration = 1.25f;
+
     [Header("Telegraph Colors")]
     [SerializeField]
     private Color attackColor =
@@ -195,6 +205,12 @@ public sealed class DebuggerController : MonoBehaviour
     private float predictiveDangerWidth;
     private bool createdPredictiveTelegraphAtRuntime;
     private Material predictiveTelegraphMaterial;
+    private bool firstPredictiveHitHandled;
+    private bool livePatchPromptActive;
+    private bool firstForwardCounterAvoided;
+    private float adaptiveHintGraceUntil;
+    private bool adaptiveHintGraceExitLogged;
+    private bool livePatchEventsSubscribed;
 
     private void Awake()
     {
@@ -232,6 +248,18 @@ public sealed class DebuggerController : MonoBehaviour
         {
             runtimeConsole = UnityEngine.Object
                 .FindFirstObjectByType<RuntimeConsoleUI>();
+        }
+
+        if (livePatchController == null && target != null)
+        {
+            livePatchController = target.GetComponent<
+                LivePatchController>();
+        }
+
+        if (adaptivePatchHintUI == null)
+        {
+            adaptivePatchHintUI = UnityEngine.Object
+                .FindFirstObjectByType<LivePatchUI>();
         }
 
         originalScaleX =
@@ -319,6 +347,18 @@ public sealed class DebuggerController : MonoBehaviour
                 transform.position,
                 target.position
             );
+
+        if (IsAdaptiveHintGraceActive())
+        {
+            StopHorizontalMovement();
+
+            if (combatState != null)
+            {
+                combatState.ResetState();
+            }
+
+            return;
+        }
 
         if (backDashAnalysisPending)
         {
@@ -856,6 +896,15 @@ public sealed class DebuggerController : MonoBehaviour
 
             result = "HIT";
             break;
+        }
+
+        if (result == "HIT")
+        {
+            HandleFirstPredictiveHit();
+        }
+        else if (result == "MISS")
+        {
+            HandleFirstForwardCounterAvoided();
         }
 
         bool heroIsDashing =
@@ -1531,13 +1580,22 @@ public sealed class DebuggerController : MonoBehaviour
         }
     }
 
+    private void OnEnable()
+    {
+        SubscribeToLivePatchEvents();
+    }
+
     private void OnDisable()
     {
+        UnsubscribeFromLivePatchEvents();
+        ClearAdaptiveGuidance();
         CancelCurrentAction("DEBUGGER DISABLED");
     }
 
     private void OnDestroy()
     {
+        UnsubscribeFromLivePatchEvents();
+
         if (createdPredictiveTelegraphAtRuntime &&
             predictiveTelegraphMaterial != null)
         {
@@ -1559,6 +1617,8 @@ public sealed class DebuggerController : MonoBehaviour
     private void CancelCurrentAction(
         string reason = "CANCELLED")
     {
+        ClearAdaptiveGuidance();
+
         if (IsAdvanceAction())
         {
             LogAdvanceExit(GetAdvanceCancelReason(reason));
@@ -1629,6 +1689,204 @@ public sealed class DebuggerController : MonoBehaviour
         }
 
         Debug.Log($"DEBUGGER ANALYSIS: {message}");
+    }
+
+    private void HandleFirstPredictiveHit()
+    {
+        if (firstPredictiveHitHandled ||
+            runtime == null ||
+            !runtime.IsRunning ||
+            target == null ||
+            !target.gameObject.activeInHierarchy)
+        {
+            return;
+        }
+
+        firstPredictiveHitHandled = true;
+        livePatchPromptActive = true;
+
+        AppendAnalysisMessage(
+            "COUNTER CONFIRMED: DASH.BACK INTERCEPTED\n" +
+            "YOUR CURRENT RESPONSE HAS BEEN PATCHED OUT\n" +
+            "LIVE PATCH REQUIRED\n" +
+            "PRESS [SPACE] TO MODIFY RUNNING CODE"
+        );
+
+        bool restoredPatch = livePatchController != null &&
+                             livePatchController.EnsurePatchAvailable();
+
+        if (restoredPatch)
+        {
+            AppendAnalysisMessage(
+                "EMERGENCY LIVE PATCH TOKEN RESTORED"
+            );
+        }
+
+        if (adaptivePatchHintUI != null)
+        {
+            adaptivePatchHintUI.ShowAdaptivePatchHint();
+        }
+
+        adaptiveHintGraceUntil =
+            Time.time + adaptiveHintGraceDuration;
+        adaptiveHintGraceExitLogged = false;
+
+        int remainingPatches = livePatchController == null
+            ? -1
+            : livePatchController.RemainingPatches;
+
+        Debug.Log(
+            "DEBUGGER ADAPTIVE HIT: FIRST COUNTER CONFIRMED\n" +
+            "action=DASH_BACK\n" +
+            $"livePatchRemaining={remainingPatches}"
+        );
+
+        Debug.Log(
+            "DEBUGGER ADAPTIVE HINT GRACE: ENTER " +
+            $"duration={adaptiveHintGraceDuration:F2}"
+        );
+    }
+
+    private void HandleFirstForwardCounterAvoided()
+    {
+        if (firstForwardCounterAvoided ||
+            patternTracker == null ||
+            !patternTracker.TryGetRecordedActionForActiveWindow(
+                CombatObservationContext.EnemyAttacking,
+                out HeroActionType action) ||
+            action != HeroActionType.DashForward)
+        {
+            return;
+        }
+
+        firstForwardCounterAvoided = true;
+        livePatchPromptActive = false;
+        HideAdaptivePatchHint();
+
+        AppendAnalysisMessage(
+            "PATCH VERIFIED: FORWARD DASH BYPASSED THE COUNTER\n" +
+            "ADAPTIVE ATTACK NEUTRALIZED"
+        );
+
+        Debug.Log(
+            "DEBUGGER COUNTER BYPASSED\n" +
+            "response=DASH_FORWARD\n" +
+            "result=MISS"
+        );
+    }
+
+    private bool IsAdaptiveHintGraceActive()
+    {
+        if (adaptiveHintGraceUntil <= 0f)
+            return false;
+
+        if (Time.time < adaptiveHintGraceUntil)
+            return true;
+
+        adaptiveHintGraceUntil = 0f;
+
+        if (!adaptiveHintGraceExitLogged)
+        {
+            adaptiveHintGraceExitLogged = true;
+            Debug.Log("DEBUGGER ADAPTIVE HINT GRACE: EXIT");
+        }
+
+        return false;
+    }
+
+    private void HandleLivePatchModeEntered()
+    {
+        if (!firstPredictiveHitHandled ||
+            !livePatchPromptActive)
+        {
+            return;
+        }
+
+        livePatchPromptActive = false;
+        HideAdaptivePatchHint();
+    }
+
+    private void HandleLivePatchCompileFinished(bool succeeded)
+    {
+        if (!firstPredictiveHitHandled)
+            return;
+
+        if (succeeded)
+        {
+            livePatchPromptActive = false;
+            HideAdaptivePatchHint();
+            AppendAnalysisMessage(
+                "LIVE PATCH APPLIED\n" +
+                "NEW RESPONSE WILL EXECUTE FROM THE NEXT ATTACK WINDOW"
+            );
+            return;
+        }
+
+        livePatchPromptActive = true;
+
+        if (adaptivePatchHintUI != null)
+        {
+            adaptivePatchHintUI.ShowAdaptivePatchHint(
+                "FIX CODE AND COMPILE — LIVE PATCH ACTIVE"
+            );
+        }
+
+        AppendAnalysisMessage(
+            "PATCH FAILED — FIX THE CODE AND COMPILE AGAIN"
+        );
+    }
+
+    private void HideAdaptivePatchHint()
+    {
+        if (adaptivePatchHintUI != null)
+        {
+            adaptivePatchHintUI.HideAdaptivePatchHint();
+        }
+    }
+
+    private void ClearAdaptiveGuidance()
+    {
+        livePatchPromptActive = false;
+
+        if (adaptiveHintGraceUntil > 0f &&
+            !adaptiveHintGraceExitLogged)
+        {
+            adaptiveHintGraceExitLogged = true;
+            Debug.Log("DEBUGGER ADAPTIVE HINT GRACE: EXIT");
+        }
+
+        adaptiveHintGraceUntil = 0f;
+        HideAdaptivePatchHint();
+    }
+
+    private void SubscribeToLivePatchEvents()
+    {
+        if (livePatchEventsSubscribed ||
+            livePatchController == null)
+        {
+            return;
+        }
+
+        livePatchController.LivePatchModeEntered +=
+            HandleLivePatchModeEntered;
+        livePatchController.LivePatchCompileFinished +=
+            HandleLivePatchCompileFinished;
+        livePatchEventsSubscribed = true;
+    }
+
+    private void UnsubscribeFromLivePatchEvents()
+    {
+        if (!livePatchEventsSubscribed ||
+            livePatchController == null)
+        {
+            return;
+        }
+
+        livePatchController.LivePatchModeEntered -=
+            HandleLivePatchModeEntered;
+        livePatchController.LivePatchCompileFinished -=
+            HandleLivePatchCompileFinished;
+        livePatchEventsSubscribed = false;
     }
 
     private bool NeedsArenaRecovery()

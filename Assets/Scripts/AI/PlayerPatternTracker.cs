@@ -45,6 +45,8 @@ public sealed class PlayerPatternTracker : MonoBehaviour
     private int guardWindowId;
     private int recordedAttackWindowId = -1;
     private int recordedGuardWindowId = -1;
+    private HeroActionType recordedAttackWindowAction =
+        HeroActionType.None;
 
     public PlayerPatternProfile CurrentProfile { get; private set; }
     public event System.Action TrackingReset;
@@ -62,6 +64,7 @@ public sealed class PlayerPatternTracker : MonoBehaviour
         if (isAttacking && !previousAttacking)
         {
             attackWindowId++;
+            recordedAttackWindowAction = HeroActionType.None;
             LogWindowOpened(
                 CombatObservationContext.EnemyAttacking,
                 attackWindowId
@@ -134,6 +137,7 @@ public sealed class PlayerPatternTracker : MonoBehaviour
         guardWindowId = 0;
         recordedAttackWindowId = -1;
         recordedGuardWindowId = -1;
+        recordedAttackWindowAction = HeroActionType.None;
 
         CurrentProfile = PlayerPatternProfile.None;
 
@@ -163,6 +167,25 @@ public sealed class PlayerPatternTracker : MonoBehaviour
         return false;
     }
 
+    public bool TryGetRecordedActionForActiveWindow(
+        CombatObservationContext expectedContext,
+        out HeroActionType action)
+    {
+        action = HeroActionType.None;
+
+        if (expectedContext !=
+                CombatObservationContext.EnemyAttacking ||
+            !previousAttacking ||
+            attackWindowId <= 0 ||
+            recordedAttackWindowId != attackWindowId)
+        {
+            return false;
+        }
+
+        action = recordedAttackWindowAction;
+        return action != HeroActionType.None;
+    }
+
     private void RecordAttackReaction(
         HeroActionType action)
     {
@@ -176,6 +199,7 @@ public sealed class PlayerPatternTracker : MonoBehaviour
         }
 
         recordedAttackWindowId = attackWindowId;
+        recordedAttackWindowAction = action;
         AddReaction(
             attackReactions,
             action,

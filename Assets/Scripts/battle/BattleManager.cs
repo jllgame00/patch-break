@@ -12,6 +12,7 @@ public sealed class BattleManager : MonoBehaviour
     [SerializeField] private ProgramRuntime runtime;
     [SerializeField] private LivePatchController livePatchController;
     [SerializeField] private RuntimeConsoleUI consoleUI;
+    [SerializeField] private LivePatchUI adaptivePatchHintUI;
 
     [Header("Result UI")]
     [SerializeField] private GameObject resultPanel;
@@ -117,6 +118,11 @@ public sealed class BattleManager : MonoBehaviour
         if (livePatchController != null)
         {
             livePatchController.CancelForBattleEnd();
+        }
+
+        if (adaptivePatchHintUI != null)
+        {
+            adaptivePatchHintUI.HideAdaptivePatchHint();
         }
 
         Time.timeScale = 1f;

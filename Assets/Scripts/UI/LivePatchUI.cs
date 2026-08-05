@@ -11,6 +11,7 @@ public sealed class LivePatchUI : MonoBehaviour
 
     private int lastRemainingUses = -1;
     private bool lastPatchingState;
+    private string adaptiveHintMessage;
 
     private void Awake()
     {
@@ -47,6 +48,12 @@ public sealed class LivePatchUI : MonoBehaviour
 
     private void RefreshDisplay()
     {
+        if (!string.IsNullOrWhiteSpace(adaptiveHintMessage))
+        {
+            statusText.text = adaptiveHintMessage;
+            return;
+        }
+
         if (controller.IsPatching)
         {
             statusText.text =
@@ -58,5 +65,30 @@ public sealed class LivePatchUI : MonoBehaviour
             controller.RemainingUses > 0
                 ? "LIVE PATCH [SPACE]: READY"
                 : "LIVE PATCH: USED";
+    }
+
+    public void ShowAdaptivePatchHint()
+    {
+        ShowAdaptivePatchHint(
+            "PRESS [SPACE] — LIVE PATCH REQUIRED"
+        );
+    }
+
+    public void ShowAdaptivePatchHint(string message)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+            return;
+
+        adaptiveHintMessage = message;
+        RefreshDisplay();
+    }
+
+    public void HideAdaptivePatchHint()
+    {
+        if (string.IsNullOrEmpty(adaptiveHintMessage))
+            return;
+
+        adaptiveHintMessage = null;
+        RefreshDisplay();
     }
 }

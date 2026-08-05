@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 
 [RequireComponent(typeof(ProgramRuntime))]
@@ -19,6 +20,11 @@ public sealed class LivePatchController : MonoBehaviour
     public bool IsPatching { get; private set; }
     public int RemainingUses { get; private set; }
     public int MaxUses => maxUses;
+    public int RemainingPatches => RemainingUses;
+    public bool IsLivePatchModeActive => IsPatching;
+
+    public event Action LivePatchModeEntered;
+    public event Action<bool> LivePatchCompileFinished;
 
     private float previousTimeScale = 1f;
     private float previousFixedDeltaTime = 0.02f;
@@ -61,9 +67,13 @@ public sealed class LivePatchController : MonoBehaviour
         // 문법 오류가 있으면 슬로모션 상태에서
         // 계속 코드를 수정할 수 있게 유지한다.
         if (!succeeded)
+        {
+            LivePatchCompileFinished?.Invoke(false);
             return;
+        }
 
         RemainingUses--;
+        LivePatchCompileFinished?.Invoke(true);
         EndLivePatch();
 
         Debug.Log(
@@ -93,8 +103,25 @@ public sealed class LivePatchController : MonoBehaviour
             previousFixedDeltaTime * slowMotionScale;
 
         consoleUI.EnterLivePatchMode();
+        LivePatchModeEntered?.Invoke();
 
         Debug.Log("LIVE PATCH MODE ENTERED");
+    }
+
+    public bool EnsurePatchAvailable(int minimumCount = 1)
+    {
+        if (IsPatching || RemainingUses >= 1)
+            return false;
+
+        int guaranteedCount = Mathf.Clamp(minimumCount, 1, 1);
+        RemainingUses = guaranteedCount;
+
+        Debug.Log(
+            "LIVE PATCH: EMERGENCY CHARGE RESTORED " +
+            "reason=DEBUGGER_ADAPTATION"
+        );
+
+        return true;
     }
 
     private void EndLivePatch()

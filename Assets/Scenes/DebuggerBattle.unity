@@ -3417,6 +3417,8 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 256
   runtime: {fileID: 1076982208}
+  livePatchController: {fileID: 1076982211}
+  adaptivePatchHintUI: {fileID: 1816563568}
   meleeTelegraph: {fileID: 1959540559}
   projectileTelegraph: {fileID: 1869886636}
   verboseTelegraphLogging: 1
@@ -3433,6 +3435,7 @@ MonoBehaviour:
   actionCooldown: 0.7
   forcedRangedBackstepDistance: 1.8
   forcedRangedBackstepDuration: 0.18
+  adaptiveHintGraceDuration: 1.25
   attackColor: {r: 1, g: 0.2, b: 0.15, a: 1}
   guardColor: {r: 0.15, g: 0.55, b: 1, a: 1}
 --- !u!1 &1430934172
@@ -3484,6 +3487,7 @@ MonoBehaviour:
   runtime: {fileID: 1076982208}
   livePatchController: {fileID: 1076982211}
   consoleUI: {fileID: 1317885504}
+  adaptivePatchHintUI: {fileID: 1816563568}
   resultPanel: {fileID: 1997082949}
   resultTitle: {fileID: 1528208507}
   resultBody: {fileID: 1179020285}
