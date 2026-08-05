@@ -4518,7 +4518,7 @@ MonoBehaviour:
   runtimeConsoleUI: {fileID: 1317885504}
   overrideController: {fileID: 0}
   overrideUsesText: {fileID: 0}
-  koreanFontAsset: {fileID: 11400000, guid: 1e42c30e8431ad64fa89faf612918793, type: 2}
+  koreanFontAsset: {fileID: 11400000, guid: 4045bf323bd76e0479849066f5610388, type: 2}
   enableBriefingTextDiagnostics: 0
   enableKoreanFontDiagnostics: 0
 --- !u!1 &3000000100
@@ -5014,8 +5014,8 @@ MonoBehaviour:
     \uD310\uBCC4\uD558\uC5EC\n\uC811\uADFC\uD558\uAC70\uB098 \uACF5\uACA9\uD558\uB294
     \uADDC\uCE59\uC744 \uC791\uC131\uD558\uC2ED\uC2DC\uC624."
   m_isRightToLeft: 0
-  m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
-  m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
+  m_fontAsset: {fileID: 11400000, guid: 4045bf323bd76e0479849066f5610388, type: 2}
+  m_sharedMaterial: {fileID: 4895222231771418469, guid: 4045bf323bd76e0479849066f5610388, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []
@@ -5310,8 +5310,8 @@ MonoBehaviour:
       m_Calls: []
   m_text: "COMPILE & RUN\n\uC791\uC131\uD55C \uADDC\uCE59\uC744 \uC2E4\uD589\uD569\uB2C8\uB2E4."
   m_isRightToLeft: 0
-  m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
-  m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
+  m_fontAsset: {fileID: 11400000, guid: 4045bf323bd76e0479849066f5610388, type: 2}
+  m_sharedMaterial: {fileID: 4895222231771418469, guid: 4045bf323bd76e0479849066f5610388, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []

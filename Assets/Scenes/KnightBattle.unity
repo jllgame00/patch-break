@@ -5376,7 +5376,7 @@ MonoBehaviour:
 
     enemy.guarding
 
-    
+
 
     AVAILABLE
     ACTIONS
@@ -5387,12 +5387,12 @@ MonoBehaviour:
 
     dash.back
 
-    
+
 
     EXAMPLE
 
-    if
-    enemy.attacking => dash.back
+    if enemy.attacking
+    => dash.back
 
     if enemy.near => slash'
   controlsCopy: "Q \u2014 MANUAL OVERRIDE\r\n\uC704\uD5D8\uD55C \uC21C\uAC04 \uAE34\uAE09
@@ -5402,7 +5402,7 @@ MonoBehaviour:
   runtimeConsoleUI: {fileID: 1317885504}
   overrideController: {fileID: 1076982210}
   overrideUsesText: {fileID: 1219398713}
-  koreanFontAsset: {fileID: 11400000, guid: 1e42c30e8431ad64fa89faf612918793, type: 2}
+  koreanFontAsset: {fileID: 11400000, guid: 4045bf323bd76e0479849066f5610388, type: 2}
   enableBriefingTextDiagnostics: 0
   enableKoreanFontDiagnostics: 0
 --- !u!1 &3000000100

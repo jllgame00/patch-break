@@ -38,7 +38,7 @@ public sealed class MainMenuController : MonoBehaviour
 
     [Header("Localization")]
     [SerializeField] private TMP_Text[] koreanTextTargets;
-    [SerializeField] private string koreanFontResourceName = "NotoSansKRMenu";
+    [SerializeField] private TMP_FontAsset koreanFontAsset;
 
     [Header("Panel Buttons")]
     [SerializeField] private Button howToPlayBackButton;
@@ -133,7 +133,7 @@ public sealed class MainMenuController : MonoBehaviour
     {
         if (koreanTextTargets == null ||
             koreanTextTargets.Length == 0 ||
-            string.IsNullOrWhiteSpace(koreanFontResourceName))
+            koreanFontAsset == null)
         {
             return false;
         }
@@ -149,31 +149,10 @@ public sealed class MainMenuController : MonoBehaviour
 
     private bool ApplyKoreanFont()
     {
-        Font sourceFont = Resources.Load<Font>(koreanFontResourceName);
-
-        if (sourceFont == null)
-        {
-            Debug.LogError(
-                $"MainMenuController: Korean font resource " +
-                $"'{koreanFontResourceName}' is missing."
-            );
-            return false;
-        }
-
-        TMP_FontAsset koreanFont =
-            TMP_FontAsset.CreateFontAsset(sourceFont);
-
-        if (koreanFont == null)
-        {
-            Debug.LogError(
-                "MainMenuController: Failed to create the Korean TMP font."
-            );
-            return false;
-        }
-
         foreach (TMP_Text target in koreanTextTargets)
         {
-            target.font = koreanFont;
+            target.font = koreanFontAsset;
+            target.fontSharedMaterial = koreanFontAsset.material;
             target.SetAllDirty();
         }
 

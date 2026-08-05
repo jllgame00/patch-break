@@ -200,6 +200,7 @@ public sealed class BattleBriefingController : MonoBehaviour
         foreach (TMP_Text target in koreanTextTargets)
         {
             target.font = koreanFontAsset;
+            target.fontSharedMaterial = koreanFontAsset.material;
             target.SetAllDirty();
         }
 
@@ -212,7 +213,7 @@ public sealed class BattleBriefingController : MonoBehaviour
     private void RunKoreanFontDiagnostics()
     {
         LogKoreanFontAssetState();
-        LogKoreanFontTargets("APPLIED_BEFORE_TRY_ADD");
+        LogKoreanFontTargets("APPLIED_BEFORE_GLYPH_CHECK");
 
         string hangulCharacters = CollectUniqueHangulCharacters();
         Font sourceFontFile = koreanFontAsset.sourceFontFile;
@@ -231,51 +232,12 @@ public sealed class BattleBriefingController : MonoBehaviour
                 $"sourceFontHasCharacter=" +
                 $"{(sourceFontFile != null && sourceFontFile.HasCharacter(character))} " +
                 $"tmpFontHasCharacter=" +
-                $"{koreanFontAsset.HasCharacter(character)}",
+                $"{koreanFontAsset.HasCharacter(character, false, false)}",
                 this
             );
         }
 
-        int charactersBefore = koreanFontAsset.characterTable.Count;
-        int glyphsBefore = koreanFontAsset.glyphTable.Count;
-        int atlasesBefore = koreanFontAsset.atlasTextures.Length;
-        bool tryAddResult = koreanFontAsset.TryAddCharacters(
-            hangulCharacters,
-            out string missingCharacters
-        );
-
-        Debug.Log(
-            $"KOREAN GLYPH TRY_ADD " +
-            $"result={tryAddResult} " +
-            $"missingCharacters='{missingCharacters}' " +
-            $"characterTableCountBefore={charactersBefore} " +
-            $"characterTableCountAfter={koreanFontAsset.characterTable.Count} " +
-            $"glyphTableCountBefore={glyphsBefore} " +
-            $"glyphTableCountAfter={koreanFontAsset.glyphTable.Count} " +
-            $"atlasTextureCountBefore={atlasesBefore} " +
-            $"atlasTextureCountAfter={koreanFontAsset.atlasTextures.Length}",
-            this
-        );
-
-        TMP_Text[] diagnosticTargets =
-        {
-            missionLabel,
-            titleText,
-            descriptionText,
-            rulesText,
-            controlsText,
-            startButtonLabel
-        };
-
-        foreach (TMP_Text target in diagnosticTargets)
-        {
-            target.font = koreanFontAsset;
-            target.fontSharedMaterial = koreanFontAsset.material;
-            target.SetAllDirty();
-            target.ForceMeshUpdate(true, true);
-        }
-
-        LogKoreanFontTargets("AFTER_TRY_ADD");
+        LogKoreanFontTargets("AFTER_GLYPH_CHECK");
     }
 
     private string CollectUniqueHangulCharacters()
