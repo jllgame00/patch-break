@@ -4,7 +4,7 @@ using UnityEngine.SceneManagement;
 public sealed class EndingScreenController : MonoBehaviour
 {
     [Header("Progression")]
-    [SerializeField] private string firstSceneName = "Battle";
+    [SerializeField] private string mainMenuSceneName = "MainMenu";
 
     [Header("Copy")]
     [SerializeField] private string title = "PATCH COMPLETE";
@@ -42,10 +42,10 @@ public sealed class EndingScreenController : MonoBehaviour
 
         if (GUI.Button(
                 new Rect(left + (width - 220f) * 0.5f, centerY + 35f, 220f, 46f),
-                "PLAY AGAIN",
+                "RETURN TO MAIN MENU",
                 buttonStyle))
         {
-            LoadFirstStage();
+            LoadMainMenu();
         }
     }
 
@@ -76,15 +76,16 @@ public sealed class EndingScreenController : MonoBehaviour
         };
     }
 
-    private void LoadFirstStage()
+    private void LoadMainMenu()
     {
         if (transitionRequested)
             return;
 
-        if (!Application.CanStreamedLevelBeLoaded(firstSceneName))
+        if (!Application.CanStreamedLevelBeLoaded(mainMenuSceneName))
         {
             Debug.LogError(
-                $"EndingScreenController: First scene '{firstSceneName}' " +
+                $"EndingScreenController: Main menu scene " +
+                $"'{mainMenuSceneName}' " +
                 "cannot be loaded. Ensure it is included in the Build Profile."
             );
             return;
@@ -92,6 +93,6 @@ public sealed class EndingScreenController : MonoBehaviour
 
         transitionRequested = true;
         Time.timeScale = 1f;
-        SceneManager.LoadScene(firstSceneName);
+        SceneManager.LoadScene(mainMenuSceneName);
     }
 }
