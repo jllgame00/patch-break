@@ -1791,6 +1791,23 @@ public static class PatchBreakKoreanFontRebuilder
 
     private static bool ApplyDebuggerBriefingLayout()
     {
+        BattleBriefingController bubbleBriefing =
+            UnityEngine.Object.FindObjectsByType<
+                BattleBriefingController
+            >(
+                FindObjectsInactive.Include,
+                FindObjectsSortMode.None
+            )
+            .FirstOrDefault(controller => controller.UsesBubbleBriefing);
+
+        if (bubbleBriefing != null)
+        {
+            // The old full-card geometry is intentionally kept inactive for
+            // fallback only. Its content no longer participates in the
+            // Screen Space Overlay bubble layout.
+            return false;
+        }
+
         TMP_Text description = FindBriefingText("DescriptionText");
         TMP_Text rules = FindBriefingText("RulesText");
         TMP_Text controls = FindBriefingText("ControlsText");

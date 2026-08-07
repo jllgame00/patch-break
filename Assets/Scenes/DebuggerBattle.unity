@@ -4808,6 +4808,7 @@ MonoBehaviour:
   koreanFontAsset: {fileID: 11400000, guid: 4045bf323bd76e0479849066f5610388, type: 2}
   enableBriefingTextDiagnostics: 0
   enableKoreanFontDiagnostics: 0
+  useBubbleBriefing: 1
 --- !u!1 &1627457087
 GameObject:
   m_ObjectHideFlags: 0
@@ -5918,7 +5919,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!222 &1918768150
 CanvasRenderer:
   m_ObjectHideFlags: 0

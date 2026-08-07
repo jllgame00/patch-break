@@ -8,6 +8,8 @@ using UnityEngine.UI;
 
 public sealed class BattleBriefingController : MonoBehaviour
 {
+    private const int MaxBubbleLinesPerPage = 7;
+
     [Header("Briefing UI")]
     [SerializeField] private GameObject briefingRoot;
     [SerializeField] private TMP_Text missionLabel;
@@ -41,8 +43,37 @@ public sealed class BattleBriefingController : MonoBehaviour
     [SerializeField] private bool enableBriefingTextDiagnostics;
     [SerializeField] private bool enableKoreanFontDiagnostics;
 
+    [Header("Presentation")]
+    [SerializeField] private bool useBubbleBriefing = true;
+
     private bool hasStartedMission;
+    private bool bubblePresentationActive;
+    private int currentPageIndex;
+    private int lastAdvanceFrame = -1;
     private Coroutine diagnosticsCoroutine;
+    private readonly List<BriefingPage> briefingPages = new();
+
+    private GameObject bubbleRoot;
+    private TMP_Text speakerNameText;
+    private TMP_Text messageText;
+    private TMP_Text nextIndicatorText;
+    private TMP_Text continueButtonText;
+    private Button bubbleBackgroundButton;
+    private Button continueButton;
+
+    public bool UsesBubbleBriefing => useBubbleBriefing;
+
+    private sealed class BriefingPage
+    {
+        public string Speaker { get; }
+        public string Message { get; }
+
+        public BriefingPage(string speaker, string message)
+        {
+            Speaker = speaker;
+            Message = message;
+        }
+    }
 
     private void Awake()
     {
@@ -60,10 +91,24 @@ public sealed class BattleBriefingController : MonoBehaviour
         ApplyBriefingCopy();
         ApplyTextPresentation();
         ApplyKoreanFont();
-        briefingRoot.SetActive(true);
         runtimeConsoleUI.SetEditorInputLocked(true);
         RefreshOverrideUsesText();
-        startButton.onClick.AddListener(StartMission);
+
+        bubblePresentationActive =
+            useBubbleBriefing &&
+            TryCreateBubbleBriefing();
+
+        if (bubblePresentationActive)
+        {
+            BuildBriefingPages();
+            PresentCurrentPage();
+            briefingRoot.SetActive(false);
+        }
+        else
+        {
+            briefingRoot.SetActive(true);
+            startButton.onClick.AddListener(StartMission);
+        }
 
         if (enableBriefingTextDiagnostics)
         {
@@ -73,7 +118,10 @@ public sealed class BattleBriefingController : MonoBehaviour
 
     private void Start()
     {
-        SelectStartButton();
+        if (!bubblePresentationActive)
+        {
+            SelectStartButton();
+        }
 
         if (enableBriefingTextDiagnostics)
         {
@@ -88,6 +136,18 @@ public sealed class BattleBriefingController : MonoBehaviour
         if (startButton != null)
         {
             startButton.onClick.RemoveListener(StartMission);
+        }
+
+        if (bubbleBackgroundButton != null)
+        {
+            bubbleBackgroundButton.onClick.RemoveListener(
+                AdvanceBriefing
+            );
+        }
+
+        if (continueButton != null)
+        {
+            continueButton.onClick.RemoveListener(AdvanceBriefing);
         }
 
         if (diagnosticsCoroutine != null)
@@ -208,6 +268,377 @@ public sealed class BattleBriefingController : MonoBehaviour
         {
             RunKoreanFontDiagnostics();
         }
+    }
+
+    private void Update()
+    {
+        if (!bubblePresentationActive ||
+            hasStartedMission ||
+            bubbleRoot == null ||
+            !bubbleRoot.activeInHierarchy)
+        {
+            return;
+        }
+
+        if (Input.GetKeyDown(KeyCode.Return) ||
+            Input.GetKeyDown(KeyCode.KeypadEnter) ||
+            Input.GetKeyDown(KeyCode.Space))
+        {
+            AdvanceBriefing();
+        }
+    }
+
+    private bool TryCreateBubbleBriefing()
+    {
+        Canvas canvas = runtimeConsoleRoot.GetComponentInParent<Canvas>(
+            true
+        );
+
+        if (canvas == null ||
+            canvas.renderMode != RenderMode.ScreenSpaceOverlay)
+        {
+            Debug.LogWarning(
+                "BattleBriefingController: Bubble briefing requires the " +
+                "existing Screen Space Overlay battle canvas. Falling back " +
+                "to the legacy briefing card.",
+                this
+            );
+            return false;
+        }
+
+        bubbleRoot = new GameObject(
+            "StageBriefingBubble",
+            typeof(RectTransform)
+        );
+        bubbleRoot.layer = LayerMask.NameToLayer("UI");
+
+        RectTransform rootRect = bubbleRoot.GetComponent<RectTransform>();
+        rootRect.SetParent(canvas.transform, false);
+        // The runtime console occupies the right third of every battle HUD,
+        // so keep the briefing on the opposite upper edge.
+        rootRect.anchorMin = new Vector2(0f, 1f);
+        rootRect.anchorMax = new Vector2(0f, 1f);
+        rootRect.pivot = new Vector2(0f, 1f);
+        rootRect.anchoredPosition = new Vector2(32f, -32f);
+        rootRect.sizeDelta = new Vector2(500f, 220f);
+        rootRect.SetAsLastSibling();
+
+        CreateBubbleTail(rootRect);
+
+        Image background = CreateImage("BubbleBackground", rootRect);
+        Stretch(background.rectTransform, Vector2.zero, Vector2.zero);
+        background.color = new Color(0.025f, 0.07f, 0.10f, 0.94f);
+
+        Outline border = background.gameObject.AddComponent<Outline>();
+        border.effectColor = new Color(0.08f, 0.92f, 0.79f, 0.88f);
+        border.effectDistance = new Vector2(1.2f, -1.2f);
+
+        bubbleBackgroundButton = background.gameObject.AddComponent<Button>();
+        ConfigureButton(bubbleBackgroundButton, background);
+        bubbleBackgroundButton.onClick.AddListener(AdvanceBriefing);
+
+        speakerNameText = CreateBubbleText("SpeakerName", rootRect);
+        SetTopLeftRect(
+            speakerNameText.rectTransform,
+            new Vector2(20f, -16f),
+            new Vector2(330f, 25f)
+        );
+        ConfigureBubbleText(
+            speakerNameText,
+            15f,
+            TextAlignmentOptions.Left,
+            new Color(0.20f, 0.97f, 0.81f, 1f)
+        );
+        speakerNameText.fontStyle = FontStyles.Bold;
+
+        messageText = CreateBubbleText("MessageText", rootRect);
+        Stretch(
+            messageText.rectTransform,
+            new Vector2(20f, 42f),
+            new Vector2(-20f, -49f)
+        );
+        ConfigureBubbleText(
+            messageText,
+            17f,
+            TextAlignmentOptions.TopLeft,
+            new Color(0.92f, 0.96f, 0.97f, 1f)
+        );
+        messageText.lineSpacing = -5f;
+
+        nextIndicatorText = CreateBubbleText("NextIndicator", rootRect);
+        SetBottomLeftRect(
+            nextIndicatorText.rectTransform,
+            new Vector2(20f, 14f),
+            new Vector2(210f, 25f)
+        );
+        ConfigureBubbleText(
+            nextIndicatorText,
+            13f,
+            TextAlignmentOptions.Left,
+            new Color(0.50f, 0.80f, 0.79f, 1f)
+        );
+
+        continueButton = CreateContinueButton(rootRect);
+        continueButton.onClick.AddListener(AdvanceBriefing);
+
+        return true;
+    }
+
+    private void CreateBubbleTail(RectTransform rootRect)
+    {
+        Image tail = CreateImage("BubbleTail", rootRect);
+        tail.rectTransform.anchorMin = new Vector2(0.10f, 0f);
+        tail.rectTransform.anchorMax = new Vector2(0.10f, 0f);
+        tail.rectTransform.pivot = new Vector2(0.5f, 0.5f);
+        tail.rectTransform.anchoredPosition = new Vector2(0f, -9f);
+        tail.rectTransform.sizeDelta = new Vector2(21f, 21f);
+        tail.rectTransform.localRotation = Quaternion.Euler(0f, 0f, 45f);
+        tail.color = new Color(0.025f, 0.07f, 0.10f, 0.94f);
+        tail.raycastTarget = false;
+
+        Outline outline = tail.gameObject.AddComponent<Outline>();
+        outline.effectColor = new Color(0.08f, 0.92f, 0.79f, 0.88f);
+        outline.effectDistance = new Vector2(1f, -1f);
+        tail.transform.SetAsFirstSibling();
+    }
+
+    private Button CreateContinueButton(RectTransform rootRect)
+    {
+        Image buttonImage = CreateImage("ContinueButton", rootRect);
+        buttonImage.rectTransform.anchorMin = new Vector2(1f, 0f);
+        buttonImage.rectTransform.anchorMax = new Vector2(1f, 0f);
+        buttonImage.rectTransform.pivot = new Vector2(1f, 0f);
+        buttonImage.rectTransform.anchoredPosition = new Vector2(-16f, 10f);
+        buttonImage.rectTransform.sizeDelta = new Vector2(126f, 31f);
+        buttonImage.color = new Color(0.06f, 0.28f, 0.27f, 0.92f);
+
+        Outline border = buttonImage.gameObject.AddComponent<Outline>();
+        border.effectColor = new Color(0.12f, 0.87f, 0.75f, 0.82f);
+        border.effectDistance = new Vector2(1f, -1f);
+
+        Button button = buttonImage.gameObject.AddComponent<Button>();
+        ConfigureButton(button, buttonImage);
+
+        continueButtonText = CreateBubbleText("Label", buttonImage.rectTransform);
+        Stretch(continueButtonText.rectTransform, Vector2.zero, Vector2.zero);
+        ConfigureBubbleText(
+            continueButtonText,
+            13f,
+            TextAlignmentOptions.Center,
+            Color.white
+        );
+
+        return button;
+    }
+
+    private Image CreateImage(string name, Transform parent)
+    {
+        GameObject imageObject = new GameObject(
+            name,
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(Image)
+        );
+        imageObject.layer = LayerMask.NameToLayer("UI");
+        imageObject.transform.SetParent(parent, false);
+        return imageObject.GetComponent<Image>();
+    }
+
+    private TMP_Text CreateBubbleText(string name, Transform parent)
+    {
+        GameObject textObject = new GameObject(
+            name,
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(TextMeshProUGUI)
+        );
+        textObject.layer = LayerMask.NameToLayer("UI");
+        textObject.transform.SetParent(parent, false);
+        return textObject.GetComponent<TMP_Text>();
+    }
+
+    private void ConfigureBubbleText(
+        TMP_Text target,
+        float fontSize,
+        TextAlignmentOptions alignment,
+        Color color)
+    {
+        if (koreanFontAsset != null)
+        {
+            target.font = koreanFontAsset;
+            target.fontSharedMaterial = koreanFontAsset.material;
+        }
+
+        target.fontSize = fontSize;
+        target.enableAutoSizing = false;
+        target.textWrappingMode = TextWrappingModes.Normal;
+        target.overflowMode = TextOverflowModes.Overflow;
+        target.alignment = alignment;
+        target.color = color;
+        target.raycastTarget = false;
+    }
+
+    private static void ConfigureButton(Button button, Image targetGraphic)
+    {
+        Navigation navigation = button.navigation;
+        navigation.mode = Navigation.Mode.None;
+        button.navigation = navigation;
+        button.targetGraphic = targetGraphic;
+    }
+
+    private static void Stretch(
+        RectTransform target,
+        Vector2 offsetMin,
+        Vector2 offsetMax)
+    {
+        target.anchorMin = Vector2.zero;
+        target.anchorMax = Vector2.one;
+        target.pivot = new Vector2(0.5f, 0.5f);
+        target.offsetMin = offsetMin;
+        target.offsetMax = offsetMax;
+    }
+
+    private static void SetTopLeftRect(
+        RectTransform target,
+        Vector2 position,
+        Vector2 size)
+    {
+        target.anchorMin = new Vector2(0f, 1f);
+        target.anchorMax = new Vector2(0f, 1f);
+        target.pivot = new Vector2(0f, 1f);
+        target.anchoredPosition = position;
+        target.sizeDelta = size;
+    }
+
+    private static void SetBottomLeftRect(
+        RectTransform target,
+        Vector2 position,
+        Vector2 size)
+    {
+        target.anchorMin = Vector2.zero;
+        target.anchorMax = Vector2.zero;
+        target.pivot = Vector2.zero;
+        target.anchoredPosition = position;
+        target.sizeDelta = size;
+    }
+
+    private void BuildBriefingPages()
+    {
+        briefingPages.Clear();
+
+        string missionAndTitle = string.IsNullOrWhiteSpace(titleCopy)
+            ? missionText
+            : $"{missionText} / {titleCopy}";
+
+        AppendLegacyCopyAsPages(missionAndTitle, descriptionCopy);
+        AppendLegacyCopyAsPages(
+            $"{missionText} / SYSTEM RULES",
+            rulesCopy
+        );
+        AppendLegacyCopyAsPages(
+            $"{missionText} / CONTROLS",
+            controlsCopy
+        );
+
+        if (briefingPages.Count == 0)
+        {
+            briefingPages.Add(
+                new BriefingPage(missionAndTitle, "READY.")
+            );
+        }
+    }
+
+    private void AppendLegacyCopyAsPages(string speaker, string source)
+    {
+        List<string> lines = NormalizeForBubble(source);
+
+        for (int index = 0; index < lines.Count; index += MaxBubbleLinesPerPage)
+        {
+            int lineCount = Mathf.Min(
+                MaxBubbleLinesPerPage,
+                lines.Count - index
+            );
+            briefingPages.Add(
+                new BriefingPage(
+                    speaker,
+                    string.Join("\n", lines.GetRange(index, lineCount))
+                )
+            );
+        }
+    }
+
+    private static List<string> NormalizeForBubble(string source)
+    {
+        List<string> lines = new();
+
+        if (string.IsNullOrWhiteSpace(source))
+        {
+            return lines;
+        }
+
+        string[] rawLines = source.Replace("\r\n", "\n").Split('\n');
+
+        foreach (string rawLine in rawLines)
+        {
+            string line = rawLine.Trim();
+
+            if (!string.IsNullOrEmpty(line))
+            {
+                lines.Add(line);
+            }
+        }
+
+        return lines;
+    }
+
+    private void PresentCurrentPage()
+    {
+        if (briefingPages.Count == 0 ||
+            speakerNameText == null ||
+            messageText == null ||
+            nextIndicatorText == null ||
+            continueButtonText == null)
+        {
+            return;
+        }
+
+        BriefingPage page = briefingPages[currentPageIndex];
+        bool isLastPage = currentPageIndex == briefingPages.Count - 1;
+
+        speakerNameText.text = page.Speaker;
+        messageText.text = page.Message;
+        nextIndicatorText.text = isLastPage
+            ? "READY TO EXECUTE"
+            : $"NEXT  {currentPageIndex + 1} / {briefingPages.Count}";
+        continueButtonText.text = isLastPage
+            ? startButtonText
+            : "NEXT  >";
+    }
+
+    private void AdvanceBriefing()
+    {
+        if (hasStartedMission ||
+            lastAdvanceFrame == Time.frameCount)
+        {
+            return;
+        }
+
+        lastAdvanceFrame = Time.frameCount;
+
+        if (currentPageIndex < briefingPages.Count - 1)
+        {
+            currentPageIndex++;
+            PresentCurrentPage();
+
+            if (EventSystem.current != null)
+            {
+                EventSystem.current.SetSelectedGameObject(null);
+            }
+
+            return;
+        }
+
+        StartMission();
     }
 
     private void RunKoreanFontDiagnostics()
@@ -527,6 +958,11 @@ public sealed class BattleBriefingController : MonoBehaviour
         startButton.interactable = false;
         runtimeConsoleUI.SetEditorInputLocked(false);
         briefingRoot.SetActive(false);
+
+        if (bubbleRoot != null)
+        {
+            bubbleRoot.SetActive(false);
+        }
 
         if (EventSystem.current != null)
         {
