@@ -444,7 +444,7 @@ MonoBehaviour:
   - {fileID: 522}
   - {fileID: 612}
   - {fileID: 712}
-  koreanFontAsset: {fileID: 11400000, guid: 4045bf323bd76e0479849066f5610388, type: 2}
+  koreanFontAsset: {fileID: 11400000, guid: 1e42c30e8431ad64fa89faf612918793, type: 2}
   howToPlayBackButton: {fileID: 622}
   creditsBackButton: {fileID: 722}
   firstBattleSceneName: Battle
