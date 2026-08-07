@@ -6185,7 +6185,7 @@ MonoBehaviour:
   missionText: MISSION 02
   titleCopy: 'COMBAT PROCESS: KNIGHT'
   descriptionCopy: "Knight\uB294 \uACF5\uACA9\uACFC \uBC29\uC5B4 \uC0C1\uD0DC\uB97C
-    \uC804\uD658\uD569\uB2C8\uB2E4.\r\n\r\n\uC801\uC758 \uD589\uB3D9\uC744 \uAD00\uCC30\uD558\uACE0\r\n\uC0C1\uD0DC\uC5D0
+    \uC804\uD658\uD569\uB2C8\uB2E4.\n\n\uC801\uC758 \uD589\uB3D9\uC744 \uAD00\uCC30\uD558\uACE0\n\uC0C1\uD0DC\uC5D0
     \uB9DE\uB294 \uB300\uC751 \uADDC\uCE59\uC744 \uC791\uC131\uD558\uC2ED\uC2DC\uC624."
   rulesCopy: 'AVAILABLE CONDITIONS
 
@@ -6216,7 +6216,7 @@ MonoBehaviour:
     => dash.back
 
     if enemy.near => slash'
-  controlsCopy: "Q \u2014 MANUAL OVERRIDE\r\n\uC704\uD5D8\uD55C \uC21C\uAC04 \uAE34\uAE09
+  controlsCopy: "Q \u2014 MANUAL OVERRIDE\n\uC704\uD5D8\uD55C \uC21C\uAC04 \uAE34\uAE09
     \uD6C4\uD1F4\uB97C \uC2E4\uD589\uD569\uB2C8\uB2E4."
   startButtonText: START MISSION
   runtimeConsoleRoot: {fileID: 1317885502}
