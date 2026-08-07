@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Text;
@@ -45,8 +46,10 @@ public sealed class BattleBriefingController : MonoBehaviour
 
     [Header("Presentation")]
     [SerializeField] private bool useBubbleBriefing = true;
+    [SerializeField] private bool beginBriefingOnAwake = true;
 
     private bool hasStartedMission;
+    private bool isBriefingVisible;
     private bool bubblePresentationActive;
     private int currentPageIndex;
     private int lastAdvanceFrame = -1;
@@ -62,6 +65,9 @@ public sealed class BattleBriefingController : MonoBehaviour
     private Button continueButton;
 
     public bool UsesBubbleBriefing => useBubbleBriefing;
+    public bool IsBriefingVisible => isBriefingVisible;
+
+    public event Action BriefingFinished;
 
     private sealed class BriefingPage
     {
@@ -101,13 +107,18 @@ public sealed class BattleBriefingController : MonoBehaviour
         if (bubblePresentationActive)
         {
             BuildBriefingPages();
-            PresentCurrentPage();
-            briefingRoot.SetActive(false);
+            bubbleRoot.SetActive(false);
         }
         else
         {
-            briefingRoot.SetActive(true);
             startButton.onClick.AddListener(StartMission);
+        }
+
+        briefingRoot.SetActive(false);
+
+        if (beginBriefingOnAwake)
+        {
+            BeginBriefing();
         }
 
         if (enableBriefingTextDiagnostics)
@@ -118,7 +129,8 @@ public sealed class BattleBriefingController : MonoBehaviour
 
     private void Start()
     {
-        if (!bubblePresentationActive)
+        if (!bubblePresentationActive &&
+            isBriefingVisible)
         {
             SelectStartButton();
         }
@@ -273,6 +285,7 @@ public sealed class BattleBriefingController : MonoBehaviour
     private void Update()
     {
         if (!bubblePresentationActive ||
+            !isBriefingVisible ||
             hasStartedMission ||
             bubbleRoot == null ||
             !bubbleRoot.activeInHierarchy)
@@ -286,6 +299,30 @@ public sealed class BattleBriefingController : MonoBehaviour
         {
             AdvanceBriefing();
         }
+    }
+
+    public void BeginBriefing()
+    {
+        if (hasStartedMission || isBriefingVisible)
+        {
+            return;
+        }
+
+        isBriefingVisible = true;
+        currentPageIndex = 0;
+        lastAdvanceFrame = -1;
+        runtimeConsoleUI.SetEditorInputLocked(true);
+
+        if (bubblePresentationActive)
+        {
+            bubbleRoot.SetActive(true);
+            PresentCurrentPage();
+            return;
+        }
+
+        startButton.interactable = true;
+        briefingRoot.SetActive(true);
+        SelectStartButton();
     }
 
     private bool TryCreateBubbleBriefing()
@@ -955,13 +992,22 @@ public sealed class BattleBriefingController : MonoBehaviour
         }
 
         hasStartedMission = true;
+        isBriefingVisible = false;
         startButton.interactable = false;
-        runtimeConsoleUI.SetEditorInputLocked(false);
         briefingRoot.SetActive(false);
 
         if (bubbleRoot != null)
         {
             bubbleRoot.SetActive(false);
+        }
+
+        if (BriefingFinished != null)
+        {
+            BriefingFinished.Invoke();
+        }
+        else
+        {
+            runtimeConsoleUI.SetEditorInputLocked(false);
         }
 
         if (EventSystem.current != null)

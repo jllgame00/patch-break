@@ -1,3 +1,4 @@
+using System;
 using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -35,6 +36,8 @@ public sealed class BattleManager : MonoBehaviour
     private bool shouldLoadNextScene;
     private float defaultFixedDeltaTime;
     private TMP_Text restartButtonLabel;
+
+    public event Action VictoryConfirmed;
 
     private void Awake()
     {
@@ -157,6 +160,13 @@ public sealed class BattleManager : MonoBehaviour
 
         ConfigureResultAction(victory);
 
+        if (victory && VictoryConfirmed != null)
+        {
+            Debug.Log("BATTLE RESULT: VICTORY");
+            VictoryConfirmed.Invoke();
+            return;
+        }
+
         if (resultPanel != null)
         {
             resultPanel.SetActive(true);
@@ -175,6 +185,16 @@ public sealed class BattleManager : MonoBehaviour
                 ? "BATTLE RESULT: VICTORY"
                 : "BATTLE RESULT: DEFEAT"
         );
+    }
+
+    public void CompleteVictoryTransition()
+    {
+        if (!battleEnded || resultActionTriggered)
+        {
+            return;
+        }
+
+        HandleResultAction();
     }
 
     private void ConfigureResultAction(bool victory)
