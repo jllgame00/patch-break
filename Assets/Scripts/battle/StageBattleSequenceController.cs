@@ -24,6 +24,9 @@ public sealed class StageBattleSequenceController : MonoBehaviour
     [SerializeField] private RuntimeConsoleUI runtimeConsoleUI;
     [SerializeField] private ProgramRuntime programRuntime;
 
+    [Header("Optional Stage Travel Background Scroll")]
+    [SerializeField] private InfiniteParallaxBackground infiniteParallaxBackground;
+
     [Header("Stage Sequence Points")]
     [SerializeField] private Transform heroEntranceStart;
     [SerializeField] private Transform heroBattlePosition;
@@ -139,14 +142,17 @@ public sealed class StageBattleSequenceController : MonoBehaviour
     private IEnumerator RunHeroEntrance()
     {
         State = SequenceState.HeroEntering;
+        BeginHeroBackgroundScroll();
         yield return MoveActor(
             hero,
             heroBattlePosition,
             heroEntranceSpeed,
             1f,
-            true
+            true,
+            false
         );
 
+        EndHeroBackgroundScroll();
         State = SequenceState.Briefing;
         briefingController.BeginBriefing();
         activeSequence = null;
@@ -166,13 +172,16 @@ public sealed class StageBattleSequenceController : MonoBehaviour
     private IEnumerator RunEnemyEntrance()
     {
         State = SequenceState.EnemyEntering;
+        BeginEncounterBackgroundScroll();
         yield return MoveActor(
             enemy,
             enemyBattlePosition,
             enemyEntranceSpeed,
             -1f,
-            false
+            false,
+            true
         );
+        EndEncounterBackgroundScroll();
 
         SetHeroControlActive(true);
         RestoreSequencePhysics();
@@ -207,14 +216,17 @@ public sealed class StageBattleSequenceController : MonoBehaviour
         }
 
         State = SequenceState.HeroExiting;
+        BeginHeroBackgroundScroll();
         yield return MoveActor(
             hero,
             heroExitPoint,
             heroExitSpeed,
             1f,
-            true
+            true,
+            false
         );
 
+        EndHeroBackgroundScroll();
         State = SequenceState.Transitioning;
         battleManager.CompleteVictoryTransition();
         activeSequence = null;
@@ -225,7 +237,8 @@ public sealed class StageBattleSequenceController : MonoBehaviour
         Transform destination,
         float speed,
         float facingDirection,
-        bool isHero)
+        bool isHero,
+        bool scrollEncounterTravel)
     {
         SetMovingAnimation(isHero, true);
 
@@ -242,16 +255,71 @@ public sealed class StageBattleSequenceController : MonoBehaviour
                0.0001f)
         {
             FreezeActorBody(actor);
+            float previousActorX = actor.position.x;
             actor.position = Vector3.MoveTowards(
                 actor.position,
                 destination.position,
                 speed * Time.deltaTime
             );
+
+            if (isHero)
+            {
+                infiniteParallaxBackground?.SyncToHeroPosition();
+            }
+            else if (scrollEncounterTravel)
+            {
+                ScrollEncounterTravel(actor.position.x - previousActorX);
+            }
+
             yield return null;
         }
 
+        float previousActorXAtArrival = actor.position.x;
         PlaceActor(actor, destination);
+
+        if (isHero)
+        {
+            infiniteParallaxBackground?.SyncToHeroPosition();
+        }
+        else if (scrollEncounterTravel)
+        {
+            ScrollEncounterTravel(actor.position.x - previousActorXAtArrival);
+        }
+
         SetMovingAnimation(isHero, false);
+    }
+
+    private void BeginHeroBackgroundScroll()
+    {
+        if (infiniteParallaxBackground != null)
+        {
+            infiniteParallaxBackground.BeginHeroScroll();
+        }
+    }
+
+    private void EndHeroBackgroundScroll()
+    {
+        if (infiniteParallaxBackground != null)
+        {
+            infiniteParallaxBackground.EndHeroScroll();
+        }
+    }
+
+    private void BeginEncounterBackgroundScroll()
+    {
+        infiniteParallaxBackground?.BeginTravelScroll();
+    }
+
+    private void EndEncounterBackgroundScroll()
+    {
+        infiniteParallaxBackground?.EndTravelScroll();
+    }
+
+    private void ScrollEncounterTravel(float enemyDeltaX)
+    {
+        infiniteParallaxBackground?.ScrollTravelDelta(
+            Mathf.Abs(enemyDeltaX)
+        );
     }
 
     private void PlaceActor(Transform actor, Transform marker)
