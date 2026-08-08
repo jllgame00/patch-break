@@ -48,6 +48,15 @@ public sealed class DebuggerController : MonoBehaviour
     [SerializeField]
     private LivePatchUI adaptivePatchHintUI;
 
+    [SerializeField]
+    private Camera combatCamera;
+
+    [SerializeField]
+    private InfiniteParallaxBackground infiniteParallaxBackground;
+
+    [SerializeField]
+    private DebuggerCombatCameraFollow combatCameraFollow;
+
     [Header("Telegraphs")]
     [SerializeField]
     private GameObject meleeTelegraph;
@@ -109,6 +118,25 @@ public sealed class DebuggerController : MonoBehaviour
 
     [SerializeField, Min(0.01f)]
     private float forcedRangedBackstepDuration = 0.18f;
+
+    [Header("Combat Retreat Spacing")]
+    [SerializeField, Min(0f)]
+    private float retreatCooldown = 2f;
+
+    [SerializeField, Min(0f)]
+    private float preferredCombatDistance = 3f;
+
+    [SerializeField, Min(0f)]
+    private float minimumRetreatDistance = 0.15f;
+
+    [SerializeField, Range(0f, 0.49f)]
+    private float safeViewportMinX = 0.12f;
+
+    [SerializeField, Range(0.51f, 1f)]
+    private float safeViewportMaxX = 0.88f;
+
+    [SerializeField, Range(0f, 0.5f)]
+    private float emergencyViewportMargin = 0.2f;
 
     [Header("Advance")]
     [SerializeField, Min(0.01f)]
@@ -193,6 +221,9 @@ public sealed class DebuggerController : MonoBehaviour
     private KnightProjectile activeProjectile;
     private bool shouldAdvanceNext;
     private float homeX;
+    private float nextRetreatAllowedAt;
+    private bool retreatVisualActive;
+    private bool retreatParallaxActive;
     private bool backDashAnalysisPending;
     private bool backDashAdaptationEnabled;
     private bool backDashAnalysisPlayed;
@@ -230,6 +261,23 @@ public sealed class DebuggerController : MonoBehaviour
 
         body = GetComponent<Rigidbody2D>();
         homeX = transform.position.x;
+
+        if (combatCamera == null)
+        {
+            combatCamera = Camera.main;
+        }
+
+        if (infiniteParallaxBackground == null)
+        {
+            infiniteParallaxBackground = UnityEngine.Object
+                .FindFirstObjectByType<InfiniteParallaxBackground>();
+        }
+
+        if (combatCameraFollow == null)
+        {
+            combatCameraFollow = UnityEngine.Object
+                .FindFirstObjectByType<DebuggerCombatCameraFollow>();
+        }
 
         if (targetHero == null &&
             target != null)
@@ -972,11 +1020,25 @@ public sealed class DebuggerController : MonoBehaviour
                     break;
                 }
 
-                float destinationX =
-                    advanceReason ==
-                    AdvanceReason.ArenaRecovery
-                        ? homeX
-                        : target.position.x;
+                float destinationX;
+                if (advanceReason == AdvanceReason.ArenaRecovery)
+                {
+                    destinationX = homeX;
+                }
+                else
+                {
+                    // ADVANCE was the remaining offscreen-movement path: it
+                    // could repeatedly target Hero's ever-increasing X with
+                    // no home-range limit. Keep the existing short arena
+                    // range as a gameplay safety boundary; camera follow
+                    // supplies the visual scrolling once the action reaches
+                    // its dead zone.
+                    destinationX = Mathf.Clamp(
+                        target.position.x,
+                        homeX - homeLeashDistance,
+                        homeX + homeLeashDistance
+                    );
+                }
 
                 float stopDistance =
                     advanceReason ==
@@ -1087,29 +1149,20 @@ public sealed class DebuggerController : MonoBehaviour
             yield break;
         }
 
-        float direction =
-            GetBackstepDirection();
-
-        float requestedX =
-            body.position.x +
-            direction * forcedRangedBackstepDistance;
-
-        float destinationX = Mathf.Clamp(
-            requestedX,
-            homeX - homeLeashDistance,
-            homeX + homeLeashDistance
-        );
-
-        if (verboseTelegraphLogging &&
-            !Mathf.Approximately(requestedX, destinationX))
+        if (Time.time < nextRetreatAllowedAt)
         {
-            Debug.Log(
-                "DEBUGGER BACKSTEP CLAMPED\n" +
-                $"requestedX={requestedX:F2}\n" +
-                $"clampedX={destinationX:F2}\n" +
-                $"homeX={homeX:F2}"
-            );
+            LogRetreatBlocked("COOLDOWN");
+            yield break;
         }
+
+        if (!TryGetRetreatDestination(out float destinationX,
+                                      out string blockedReason))
+        {
+            LogRetreatBlocked(blockedReason);
+            yield break;
+        }
+
+        BeginCombatRetreatVisual(destinationX);
 
         float elapsed = 0f;
 
@@ -1137,11 +1190,67 @@ public sealed class DebuggerController : MonoBehaviour
                     body.linearVelocity.y
                 );
 
+            float previousX = body.position.x;
             yield return new WaitForFixedUpdate();
+            if (retreatParallaxActive)
+            {
+                infiniteParallaxBackground?.ScrollCombatDelta(
+                    body.position.x - previousX
+                );
+            }
             elapsed += Time.fixedDeltaTime;
         }
 
         StopForcedRangedBackstep();
+    }
+
+    private bool TryGetRetreatDestination(
+        out float destinationX,
+        out string blockedReason)
+    {
+        destinationX = body != null ? body.position.x : transform.position.x;
+        blockedReason = string.Empty;
+
+        float currentDistance = GetHorizontalTargetDistance();
+        float requestedDistance = Mathf.Min(
+            forcedRangedBackstepDistance,
+            Mathf.Max(0f, preferredCombatDistance - currentDistance)
+        );
+
+        if (requestedDistance < minimumRetreatDistance)
+        {
+            blockedReason = "PREFERRED_DISTANCE";
+            return false;
+        }
+
+        float direction = GetBackstepDirection();
+        float requestedX = destinationX + direction * requestedDistance;
+        float minimumX = homeX - homeLeashDistance;
+        float maximumX = homeX + homeLeashDistance;
+
+        if (TryGetSafeViewportBounds(out float safeMinimumX,
+                                     out float safeMaximumX))
+        {
+            minimumX = Mathf.Max(minimumX, safeMinimumX);
+            maximumX = Mathf.Min(maximumX, safeMaximumX);
+        }
+
+        if (minimumX > maximumX)
+        {
+            blockedReason = "SAFE_BOUNDS_INVALID";
+            return false;
+        }
+
+        destinationX = Mathf.Clamp(requestedX, minimumX, maximumX);
+
+        if (Mathf.Abs(destinationX - body.position.x) <
+            minimumRetreatDistance)
+        {
+            blockedReason = "EDGE";
+            return false;
+        }
+
+        return true;
     }
 
     private float GetBackstepDirection()
@@ -1159,6 +1268,111 @@ public sealed class DebuggerController : MonoBehaviour
     private void StopForcedRangedBackstep()
     {
         StopHorizontalMovement();
+
+        if (!retreatVisualActive)
+        {
+            return;
+        }
+
+        retreatVisualActive = false;
+        if (retreatParallaxActive)
+        {
+            infiniteParallaxBackground?.EndCombatRetreatScroll();
+            retreatParallaxActive = false;
+        }
+        nextRetreatAllowedAt = Time.time + retreatCooldown;
+
+        if (verboseTelegraphLogging)
+        {
+            Debug.Log(
+                "DEBUGGER RETREAT_END\n" +
+                $"currentX={transform.position.x:F2}\n" +
+                $"nextAllowedAt={nextRetreatAllowedAt:F2}"
+            );
+        }
+    }
+
+    private void BeginCombatRetreatVisual(float destinationX)
+    {
+        retreatVisualActive = true;
+        retreatParallaxActive =
+            combatCameraFollow == null ||
+            !combatCameraFollow.IsCombatFramingActive;
+
+        if (retreatParallaxActive)
+        {
+            infiniteParallaxBackground?.BeginCombatRetreatScroll();
+        }
+
+        if (verboseTelegraphLogging)
+        {
+            Debug.Log(
+                "DEBUGGER RETREAT_START\n" +
+                $"currentX={transform.position.x:F2}\n" +
+                $"destinationX={destinationX:F2}\n" +
+                $"distance={GetHorizontalTargetDistance():F2}"
+            );
+        }
+    }
+
+    private bool TryGetSafeViewportBounds(
+        out float minimumX,
+        out float maximumX)
+    {
+        minimumX = 0f;
+        maximumX = 0f;
+
+        Camera camera = combatCamera != null
+            ? combatCamera
+            : Camera.main;
+        if (camera == null)
+        {
+            return false;
+        }
+
+        float depth = Mathf.Abs(
+            transform.position.z - camera.transform.position.z
+        );
+        float leftX = camera.ViewportToWorldPoint(
+            new Vector3(safeViewportMinX, 0.5f, depth)
+        ).x;
+        float rightX = camera.ViewportToWorldPoint(
+            new Vector3(safeViewportMaxX, 0.5f, depth)
+        ).x;
+        float visualHalfWidth = spriteRenderer != null
+            ? spriteRenderer.bounds.extents.x
+            : 0f;
+
+        minimumX = Mathf.Min(leftX, rightX) + visualHalfWidth;
+        maximumX = Mathf.Max(leftX, rightX) - visualHalfWidth;
+        return minimumX <= maximumX;
+    }
+
+    private bool TryGetViewportX(out float viewportX)
+    {
+        Camera camera = combatCamera != null
+            ? combatCamera
+            : Camera.main;
+        if (camera == null)
+        {
+            viewportX = 0f;
+            return false;
+        }
+
+        viewportX = camera.WorldToViewportPoint(transform.position).x;
+        return true;
+    }
+
+    private void LogRetreatBlocked(string reason)
+    {
+        if (verboseTelegraphLogging)
+        {
+            Debug.Log(
+                "DEBUGGER RETREAT_BLOCKED_" + reason + "\n" +
+                $"currentX={transform.position.x:F2}\n" +
+                $"distance={GetHorizontalTargetDistance():F2}"
+            );
+        }
     }
 
     private void StopHorizontalMovement()
@@ -1911,6 +2125,15 @@ public sealed class DebuggerController : MonoBehaviour
 
     private bool NeedsArenaRecovery()
     {
+        // Normal retreat is constrained before it can leave the safe camera
+        // region. Keep the old home-leash recovery only as a no-camera
+        // fallback; with a combat camera this path is emergency-only.
+        if (TryGetViewportX(out float viewportX))
+        {
+            return viewportX < -emergencyViewportMargin ||
+                   viewportX > 1f + emergencyViewportMargin;
+        }
+
         return Mathf.Abs(transform.position.x - homeX) >
                homeLeashDistance;
     }

@@ -48,6 +48,7 @@ public sealed class StageBattleSequenceController : MonoBehaviour
     private HeroController heroController;
     private CharacterPoseController heroPoseController;
     private CharacterPoseController enemyPoseController;
+    private SpriteRenderer heroRenderer;
     private Rigidbody2D heroBody;
     private Rigidbody2D enemyBody;
     private Coroutine activeSequence;
@@ -75,6 +76,7 @@ public sealed class StageBattleSequenceController : MonoBehaviour
         heroController = hero.GetComponent<HeroController>();
         heroPoseController = hero.GetComponent<CharacterPoseController>();
         enemyPoseController = enemy.GetComponent<CharacterPoseController>();
+        heroRenderer = hero.GetComponent<SpriteRenderer>();
         heroBody = hero.GetComponent<Rigidbody2D>();
         enemyBody = enemy.GetComponent<Rigidbody2D>();
 
@@ -215,22 +217,25 @@ public sealed class StageBattleSequenceController : MonoBehaviour
     private IEnumerator RunVictoryExit()
     {
         State = SequenceState.VictoryDelay;
+        LogBackgroundCoverage("AfterVictoryConfirmed");
         runtimeConsoleUI.SetEditorInputLocked(true);
         SuspendSequencePhysics();
         SetHeroControlActive(false);
         SetEnemyAiActive(false);
+        LogBackgroundCoverage("AfterEnemyAiDisabled");
 
         if (victoryExitDelay > 0f)
         {
             yield return new WaitForSeconds(victoryExitDelay);
         }
 
+        LogBackgroundCoverage("BeforeHeroExit");
         State = SequenceState.HeroExiting;
         heroPoseController?.SetBasePose();
         BeginHeroBackgroundScroll();
-        yield return MoveActor(
+        yield return MoveActorToPosition(
             hero,
-            heroExitPoint,
+            ResolveVictoryHeroExitTarget(),
             heroExitSpeed,
             1f,
             true,
@@ -238,9 +243,86 @@ public sealed class StageBattleSequenceController : MonoBehaviour
         );
 
         EndHeroBackgroundScroll();
+        LogBackgroundCoverage("AfterHeroExit");
         State = SequenceState.Transitioning;
+        LogBackgroundCoverage("BeforeEndingLoad");
         battleManager.CompleteVictoryTransition();
         activeSequence = null;
+    }
+
+    private Vector3 ResolveVictoryHeroExitTarget()
+    {
+        Vector3 currentHeroPosition = hero.position;
+        Vector3 markerPosition = heroExitPoint.position;
+        float serializedExitX = markerPosition.x;
+        float resolvedExitX = serializedExitX;
+        float cameraX = 0f;
+        float cameraRightX = float.NegativeInfinity;
+        float spriteHalfWidth = heroRenderer != null
+            ? heroRenderer.bounds.extents.x
+            : 0f;
+        const float OffscreenMargin = 0.25f;
+
+        Camera camera = Camera.main;
+        if (camera != null &&
+            camera.enabled &&
+            camera.gameObject.activeInHierarchy)
+        {
+            cameraX = camera.transform.position.x;
+            float depth = Mathf.Abs(
+                currentHeroPosition.z - camera.transform.position.z
+            );
+            cameraRightX = camera.ViewportToWorldPoint(
+                new Vector3(1f, 0.5f, depth)
+            ).x;
+            float cameraOffscreenExitX =
+                cameraRightX + spriteHalfWidth + OffscreenMargin;
+            resolvedExitX = Mathf.Max(
+                serializedExitX,
+                cameraOffscreenExitX
+            );
+        }
+
+        if (resolvedExitX <= currentHeroPosition.x)
+        {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            Debug.LogError(
+                "HERO_EXIT_TARGET_BEHIND " +
+                $"HeroX={currentHeroPosition.x:F3} " +
+                $"SerializedExitX={serializedExitX:F3} " +
+                $"ResolvedExitX={resolvedExitX:F3} " +
+                $"CameraX={cameraX:F3}",
+                this
+            );
+#endif
+            resolvedExitX = currentHeroPosition.x +
+                            Mathf.Max(
+                                0.1f,
+                                spriteHalfWidth * 2f + OffscreenMargin
+                            );
+        }
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        Debug.Log(
+            "HERO_EXIT_TARGET " +
+            $"HeroX={currentHeroPosition.x:F3} " +
+            $"SerializedExitX={serializedExitX:F3} " +
+            $"ResolvedExitX={resolvedExitX:F3} " +
+            $"CameraX={cameraX:F3} " +
+            $"CameraRightX={cameraRightX:F3} " +
+            $"SpriteHalfWidth={spriteHalfWidth:F3}",
+            this
+        );
+#endif
+
+        // Preserve the settled gameplay baseline. Camera combat framing only
+        // changes horizontal presentation, so Y/Z must not come from a
+        // potentially stale fixed-world exit marker.
+        return new Vector3(
+            resolvedExitX,
+            currentHeroPosition.y,
+            currentHeroPosition.z
+        );
     }
 
     private IEnumerator MoveActor(
@@ -251,7 +333,32 @@ public sealed class StageBattleSequenceController : MonoBehaviour
         bool isHero,
         bool scrollEncounterTravel)
     {
+        yield return MoveActorToPosition(
+            actor,
+            destination.position,
+            speed,
+            facingDirection,
+            isHero,
+            scrollEncounterTravel
+        );
+    }
+
+    private IEnumerator MoveActorToPosition(
+        Transform actor,
+        Vector3 destinationPosition,
+        float speed,
+        float facingDirection,
+        bool isHero,
+        bool scrollEncounterTravel)
+    {
         SetMovingAnimation(isHero, true);
+        bool isVictoryHeroExit =
+            isHero && State == SequenceState.HeroExiting;
+        bool loggedHeroExitFirstFrame = false;
+        bool loggedHeroExitMiddleFrame = false;
+        float heroExitStartDistance = isVictoryHeroExit
+            ? Vector3.Distance(actor.position, destinationPosition)
+            : 0f;
 
         if (isHero)
         {
@@ -262,20 +369,46 @@ public sealed class StageBattleSequenceController : MonoBehaviour
             FaceEnemy(facingDirection);
         }
 
-        while ((actor.position - destination.position).sqrMagnitude >
+        while ((actor.position - destinationPosition).sqrMagnitude >
                0.0001f)
         {
             FreezeActorBody(actor);
             float previousActorX = actor.position.x;
             actor.position = Vector3.MoveTowards(
                 actor.position,
-                destination.position,
+                destinationPosition,
                 speed * Time.deltaTime
             );
 
             if (isHero)
             {
                 infiniteParallaxBackground?.SyncToHeroPosition();
+
+                if (isVictoryHeroExit)
+                {
+                    float remainingDistance = Vector3.Distance(
+                        actor.position,
+                        destinationPosition
+                    );
+                    float progress = heroExitStartDistance <= Mathf.Epsilon
+                        ? 1f
+                        : 1f - remainingDistance / heroExitStartDistance;
+                    if (!loggedHeroExitFirstFrame)
+                    {
+                        loggedHeroExitFirstFrame = true;
+                        LogBackgroundCoverage(
+                            "HeroExitFrame sample=first"
+                        );
+                    }
+                    else if (!loggedHeroExitMiddleFrame &&
+                             progress >= 0.5f)
+                    {
+                        loggedHeroExitMiddleFrame = true;
+                        LogBackgroundCoverage(
+                            "HeroExitFrame sample=middle"
+                        );
+                    }
+                }
             }
             else if (scrollEncounterTravel)
             {
@@ -286,11 +419,15 @@ public sealed class StageBattleSequenceController : MonoBehaviour
         }
 
         float previousActorXAtArrival = actor.position.x;
-        PlaceActor(actor, destination);
+        PlaceActor(actor, destinationPosition);
 
         if (isHero)
         {
             infiniteParallaxBackground?.SyncToHeroPosition();
+            if (isVictoryHeroExit)
+            {
+                LogBackgroundCoverage("HeroExitFrame sample=final");
+            }
         }
         else if (scrollEncounterTravel)
         {
@@ -316,6 +453,11 @@ public sealed class StageBattleSequenceController : MonoBehaviour
         }
     }
 
+    private void LogBackgroundCoverage(string phase)
+    {
+        infiniteParallaxBackground?.LogCameraCoveragePhase(phase);
+    }
+
     private void BeginEncounterBackgroundScroll()
     {
         infiniteParallaxBackground?.BeginTravelScroll();
@@ -335,7 +477,12 @@ public sealed class StageBattleSequenceController : MonoBehaviour
 
     private void PlaceActor(Transform actor, Transform marker)
     {
-        actor.position = marker.position;
+        PlaceActor(actor, marker.position);
+    }
+
+    private void PlaceActor(Transform actor, Vector3 position)
+    {
+        actor.position = position;
         FreezeActorBody(actor);
     }
 
