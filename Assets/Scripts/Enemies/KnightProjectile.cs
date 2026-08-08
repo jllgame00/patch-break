@@ -106,6 +106,8 @@ public sealed class KnightProjectile : MonoBehaviour
                 0f
             );
 
+        PersistentAudioManager.PlayProjectile();
+
         Destroy(gameObject, lifetime);
     }
 

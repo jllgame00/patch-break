@@ -72,6 +72,7 @@ public sealed class HeroAttack : MonoBehaviour
         // Gameplay damage timing remains the source of truth. This only
         // starts the visual one-shot for an already-authorized SLASH.
         poseController?.PlayAttack();
+        PersistentAudioManager.PlaySwordSwing();
 
         Collider2D[] hits =
             Physics2D.OverlapCircleAll(

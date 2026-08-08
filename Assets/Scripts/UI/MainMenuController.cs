@@ -272,6 +272,7 @@ public sealed class MainMenuController : MonoBehaviour
         sceneLoadRequested = true;
         nextButton.interactable = false;
         Time.timeScale = 1f;
+        PersistentAudioManager.NotifyUserGesture();
         SceneManager.LoadScene(firstBattleSceneName);
     }
 

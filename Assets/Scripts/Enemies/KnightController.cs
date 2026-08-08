@@ -416,6 +416,7 @@ public sealed class KnightController : MonoBehaviour
             return;
 
         poseController?.PlayAttack();
+        PersistentAudioManager.PlaySwordSwing();
 
         Collider2D[] hits =
             Physics2D.OverlapCircleAll(

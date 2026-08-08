@@ -148,6 +148,10 @@ public sealed class HitVfxManager : MonoBehaviour
             return;
         }
 
+        // This is the same confirmed Health reduction that drives the VFX.
+        // Misses, invulnerability, and complete guards never reach here.
+        PersistentAudioManager.PlayHit();
+
         SpriteRenderer victimRenderer =
             damagedHealth.GetComponent<SpriteRenderer>();
         if (victimRenderer == null)
