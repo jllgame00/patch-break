@@ -211,6 +211,8 @@ public sealed class DebuggerController : MonoBehaviour
     private float adaptiveHintGraceUntil;
     private bool adaptiveHintGraceExitLogged;
     private bool livePatchEventsSubscribed;
+    private CharacterPoseController poseController;
+    private GuardVisualLoop guardVisual;
 
     private void Awake()
     {
@@ -270,6 +272,12 @@ public sealed class DebuggerController : MonoBehaviour
             normalColor =
                 spriteRenderer.color;
         }
+
+        poseController = GetComponent<CharacterPoseController>();
+
+        guardVisual = guardIndicator != null
+            ? guardIndicator.GetComponentInChildren<GuardVisualLoop>(true)
+            : null;
 
         if (meleeTelegraph == null)
         {
@@ -596,6 +604,8 @@ public sealed class DebuggerController : MonoBehaviour
         if (meleeAttackPoint == null)
             return;
 
+        poseController?.PlayAttack();
+
         Collider2D[] hits =
             Physics2D.OverlapCircleAll(
                 meleeAttackPoint.position,
@@ -657,6 +667,7 @@ public sealed class DebuggerController : MonoBehaviour
                 Quaternion.identity
             );
 
+        activeProjectile.SetVisualStyle(ProjectileVisualStyle.Debugger);
         activeProjectile.Launch(
             direction,
             lockedProjectileTargetX,
@@ -1570,10 +1581,19 @@ public sealed class DebuggerController : MonoBehaviour
             localPosition;
 
         guardIndicator.SetActive(true);
+        guardVisual?.PlayGuard();
     }
 
     private void HideGuardIndicator()
     {
+        if (guardVisual != null)
+        {
+            // This does not extend Debugger combatState.IsGuarding. It only
+            // leaves the visual child alive for the Break one-shot.
+            guardVisual.StopGuard();
+            return;
+        }
+
         if (guardIndicator != null)
         {
             guardIndicator.SetActive(false);

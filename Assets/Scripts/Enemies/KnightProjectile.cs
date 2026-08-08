@@ -1,5 +1,11 @@
 using UnityEngine;
 
+public enum ProjectileVisualStyle
+{
+    Knight,
+    Debugger
+}
+
 [RequireComponent(typeof(Rigidbody2D))]
 [RequireComponent(typeof(Collider2D))]
 public sealed class KnightProjectile : MonoBehaviour
@@ -25,6 +31,12 @@ public sealed class KnightProjectile : MonoBehaviour
     [SerializeField]
     private GameObject hitEffectPrefab;
 
+    [Header("Visual Animation")]
+    [SerializeField] private SpriteSequencePlayer visualSequence;
+    [SerializeField] private Sprite[] knightBeamFrames;
+    [SerializeField] private Sprite[] debuggerBeamFrames;
+    [SerializeField, Min(0.01f)] private float beamFramesPerSecond = 12f;
+
     private Rigidbody2D body;
     private float horizontalDirection;
     private float lockedTargetX;
@@ -36,9 +48,28 @@ public sealed class KnightProjectile : MonoBehaviour
     private bool resolutionNotified;
     private string logPrefix = "KNIGHT PROJECTILE";
 
+    public SpriteSequencePlayer VisualSequence => visualSequence;
+    public Sprite[] KnightBeamFrames => knightBeamFrames;
+    public Sprite[] DebuggerBeamFrames => debuggerBeamFrames;
+    public float BeamFramesPerSecond => beamFramesPerSecond;
+
     private void Awake()
     {
         body = GetComponent<Rigidbody2D>();
+    }
+
+    /// <summary>
+    /// Called immediately after the existing projectile Instantiate call.
+    /// It affects only renderer frames; Launch still owns all movement,
+    /// collision, lifetime, and damage behavior.
+    /// </summary>
+    public void SetVisualStyle(ProjectileVisualStyle style)
+    {
+        Sprite[] frames = style == ProjectileVisualStyle.Debugger
+            ? debuggerBeamFrames
+            : knightBeamFrames;
+
+        visualSequence?.PlayLoop(frames, beamFramesPerSecond);
     }
 
     public void Launch(

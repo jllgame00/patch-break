@@ -116,6 +116,8 @@ public sealed class KnightController : MonoBehaviour
     private bool hasLockedProjectileTarget;
     private int nextProjectileAttackSignalId;
     private int activeProjectileAttackSignalId;
+    private CharacterPoseController poseController;
+    private GuardVisualLoop guardVisual;
 
     private void Awake()
     {
@@ -149,6 +151,12 @@ public sealed class KnightController : MonoBehaviour
             normalColor =
                 spriteRenderer.color;
         }
+
+        poseController = GetComponent<CharacterPoseController>();
+
+        guardVisual = guardIndicator != null
+            ? guardIndicator.GetComponentInChildren<GuardVisualLoop>(true)
+            : null;
 
         if (meleeTelegraph == null)
         {
@@ -407,6 +415,8 @@ public sealed class KnightController : MonoBehaviour
         if (meleeAttackPoint == null)
             return;
 
+        poseController?.PlayAttack();
+
         Collider2D[] hits =
             Physics2D.OverlapCircleAll(
                 meleeAttackPoint.position,
@@ -468,6 +478,7 @@ public sealed class KnightController : MonoBehaviour
                 Quaternion.identity
             );
 
+        projectile.SetVisualStyle(ProjectileVisualStyle.Knight);
         projectile.Launch(
             direction,
             lockedProjectileTargetX,
@@ -920,10 +931,19 @@ public sealed class KnightController : MonoBehaviour
             localPosition;
 
         guardIndicator.SetActive(true);
+        guardVisual?.PlayGuard();
     }
 
     private void HideGuardIndicator()
     {
+        if (guardVisual != null)
+        {
+            // The gameplay guard state ends at the existing call site. Only
+            // the child renderer stays visible briefly for its Break frames.
+            guardVisual.StopGuard();
+            return;
+        }
+
         if (guardIndicator != null)
         {
             guardIndicator.SetActive(false);

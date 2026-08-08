@@ -41,11 +41,13 @@ public sealed class HeroAttack : MonoBehaviour
     private float nextAttackTime;
     private HeroController heroController;
     private Health heroHealth;
+    private CharacterPoseController poseController;
 
     private void Awake()
     {
         heroController = GetComponent<HeroController>();
         heroHealth = GetComponent<Health>();
+        poseController = GetComponent<CharacterPoseController>();
     }
 
     public bool TryAttack()
@@ -66,6 +68,10 @@ public sealed class HeroAttack : MonoBehaviour
 
         nextAttackTime =
             Time.time + attackCooldown;
+
+        // Gameplay damage timing remains the source of truth. This only
+        // starts the visual one-shot for an already-authorized SLASH.
+        poseController?.PlayAttack();
 
         Collider2D[] hits =
             Physics2D.OverlapCircleAll(

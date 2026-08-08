@@ -43,6 +43,7 @@ public sealed class GolemController : MonoBehaviour
     private float nextAttackTime;
     private float originalScaleX;
     private Color normalColor = Color.white;
+    private CharacterPoseController poseController;
 
     private void Awake()
     {
@@ -62,6 +63,8 @@ public sealed class GolemController : MonoBehaviour
         {
             normalColor = spriteRenderer.color;
         }
+
+        poseController = GetComponent<CharacterPoseController>();
         
         SetAttackRangeTelegraph(false);
     }
@@ -137,6 +140,10 @@ public sealed class GolemController : MonoBehaviour
 
             return;
         }
+
+        // The existing windup and hit timing remain unchanged. The sprite
+        // one-shot starts only when this gameplay attack is performed.
+        poseController?.PlayAttack();
 
         Collider2D[] hits = Physics2D.OverlapCircleAll(
             attackPoint.position,
