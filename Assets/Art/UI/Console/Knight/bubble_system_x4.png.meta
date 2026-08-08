@@ -5,6 +5,12 @@ TextureImporter:
   - first:
       213: 3226447618752991198
     second: bubble_system_x4_0
+  - first:
+      213: 5183643577301211541
+    second: ConsoleSystemFrame
+  - first:
+      213: -846435321712535882
+    second: ConsoleSystemTail
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -46,7 +52,7 @@ TextureImporter:
   nPOTScale: 0
   lightmap: 0
   compressionQuality: 50
-  spriteMode: 1
+  spriteMode: 2
   spriteExtrude: 1
   spriteMeshType: 0
   alignment: 0
@@ -139,23 +145,45 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: bubble_system_x4_0
+      name: ConsoleSystemFrame
       rect:
         serializedVersion: 2
         x: 0
-        y: 23
+        y: 40
         width: 752
-        height: 249
+        height: 232
       alignment: 0
-      pivot: {x: 0, y: 0}
+      pivot: {x: 0.5, y: 0.5}
+      border: {x: 8, y: 8, z: 8, w: 48}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 59916439e5000f740800000000000000
+      internalID: 5183643577301211541
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: ConsoleSystemTail
+      rect:
+        serializedVersion: 2
+        x: 60
+        y: 24
+        width: 28
+        height: 16
+      alignment: 0
+      pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
       customData: 
       outline: []
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: edf4d2ac305a6cc20800000000000000
-      internalID: 3226447618752991198
+      spriteID: 6b61bfb3f8bd044f0800000000000000
+      internalID: -846435321712535882
       vertices: []
       indices: 
       edges: []
@@ -174,6 +202,8 @@ TextureImporter:
     spriteCustomMetadata:
       entries: []
     nameFileIdTable:
+      ConsoleSystemFrame: 5183643577301211541
+      ConsoleSystemTail: -846435321712535882
       bubble_system_x4_0: 3226447618752991198
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
