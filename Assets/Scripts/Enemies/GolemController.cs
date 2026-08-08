@@ -181,6 +181,10 @@ public sealed class GolemController : MonoBehaviour
                 );
 
             health.TakeDamage(attackDamage);
+            HitVfxManager.ReportConfirmedHit(
+                health,
+                hitPosition
+            );
             SpawnHitEffect(hitPosition);
             successfulHits++;
         }

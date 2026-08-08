@@ -220,6 +220,10 @@ public sealed class KnightProjectile : MonoBehaviour
             );
 
         health.TakeDamage(damage);
+        HitVfxManager.ReportConfirmedHit(
+            health,
+            hitPosition
+        );
         SpawnHitEffect(hitPosition);
 
         Debug.Log($"{logPrefix} HIT");

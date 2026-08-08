@@ -150,6 +150,10 @@ public sealed class HeroAttack : MonoBehaviour
             }
 
             health.TakeDamage(damage);
+            HitVfxManager.ReportConfirmedHit(
+                health,
+                hitPosition
+            );
             SpawnHitEffect(hitPosition);
 
             successfulHits++;

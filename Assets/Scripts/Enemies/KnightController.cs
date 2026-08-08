@@ -444,6 +444,10 @@ public sealed class KnightController : MonoBehaviour
                 );
 
             health.TakeDamage(meleeDamage);
+            HitVfxManager.ReportConfirmedHit(
+                health,
+                hitPosition
+            );
             SpawnHitEffect(hitPosition);
         }
 

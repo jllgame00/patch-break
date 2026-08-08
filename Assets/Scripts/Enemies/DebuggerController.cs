@@ -681,6 +681,10 @@ public sealed class DebuggerController : MonoBehaviour
                 );
 
             health.TakeDamage(meleeDamage);
+            HitVfxManager.ReportConfirmedHit(
+                health,
+                hitPosition
+            );
             SpawnHitEffect(hitPosition);
         }
 
@@ -943,15 +947,19 @@ public sealed class DebuggerController : MonoBehaviour
                 break;
             }
 
-            health.TakeDamage(predictiveDamage);
-            SpawnHitEffect(
-                hit.ClosestPoint(
-                    new Vector2(
-                        predictiveDangerCenterX,
-                        predictiveDangerCenterY
-                    )
+            Vector2 hitPosition = hit.ClosestPoint(
+                new Vector2(
+                    predictiveDangerCenterX,
+                    predictiveDangerCenterY
                 )
             );
+
+            health.TakeDamage(predictiveDamage);
+            HitVfxManager.ReportConfirmedStrongHit(
+                health,
+                hitPosition
+            );
+            SpawnHitEffect(hitPosition);
 
             result = "HIT";
             break;
