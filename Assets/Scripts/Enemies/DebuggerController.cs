@@ -1013,6 +1013,7 @@ public sealed class DebuggerController : MonoBehaviour
         }
         else
         {
+            poseController?.PlayWalk();
             while (elapsed < advanceMaxDuration)
             {
                 if (runtime == null || !runtime.IsRunning)
@@ -1091,6 +1092,7 @@ public sealed class DebuggerController : MonoBehaviour
             }
 
             StopHorizontalMovement();
+            poseController?.StopWalk();
         }
 
         LogAdvanceExit(exitReason);
@@ -1115,6 +1117,10 @@ public sealed class DebuggerController : MonoBehaviour
         string actionName,
         IEnumerator routine)
     {
+        // Each action is authoritative for its own visual. ADVANCE requests
+        // Walk from inside its routine; dash/guard/attack paths must not
+        // inherit locomotion from a preceding advance.
+        poseController?.StopWalk();
         isActing = true;
         activeActionName = actionName;
         actionSkipLogged = false;

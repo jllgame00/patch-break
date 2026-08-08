@@ -42,11 +42,13 @@ public sealed class HeroController : MonoBehaviour
         actionExecutor.VerboseDashLogging;
 
     private HeroActionExecutor actionExecutor;
+    private CharacterPoseController poseController;
 
     private void Awake()
     {
         body = GetComponent<Rigidbody2D>();
         actionExecutor = GetComponent<HeroActionExecutor>();
+        poseController = GetComponent<CharacterPoseController>();
         originalScaleX = Mathf.Abs(transform.localScale.x);
     }
 
@@ -87,6 +89,15 @@ public sealed class HeroController : MonoBehaviour
             return;
         }
 
+        // This is the authoritative normal-movement path. Reassert the
+        // already-requested visual state here so a one-time setup stop cannot
+        // leave a moving Hero on the Ready pose. Dashes, recoil, stagger, and
+        // attacks return above or clear moveInput through their existing code.
+        if (!Mathf.Approximately(moveInput, 0f))
+        {
+            poseController?.PlayWalk();
+        }
+
         body.linearVelocity = new Vector2(
             moveInput * moveSpeed,
             body.linearVelocity.y
@@ -103,9 +114,13 @@ public sealed class HeroController : MonoBehaviour
         moveInput = Mathf.Clamp(input, -1f, 1f);
 
         if (Mathf.Approximately(moveInput, 0f))
+        {
+            poseController?.StopWalk();
             return;
+        }
 
         FaceDirection(moveInput);
+        poseController?.PlayWalk();
     }
 
     public void FaceDirection(float direction)
@@ -142,6 +157,7 @@ public sealed class HeroController : MonoBehaviour
     public void StopMoving()
     {
         moveInput = 0f;
+        poseController?.StopWalk();
 
         body.linearVelocity = new Vector2(
             0f,
@@ -241,6 +257,7 @@ public sealed class HeroController : MonoBehaviour
         waitingForInvulnerabilityEnd = false;
         isDashing = true;
         moveInput = 0f;
+        poseController?.StopWalk();
 
         body.linearVelocity = new Vector2(
             dashDirection * dashSpeed,

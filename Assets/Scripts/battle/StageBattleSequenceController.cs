@@ -46,6 +46,7 @@ public sealed class StageBattleSequenceController : MonoBehaviour
     [SerializeField] private string moveBoolParameter = "IsMoving";
 
     private HeroController heroController;
+    private HeroManualInput heroManualInput;
     private CharacterPoseController heroPoseController;
     private CharacterPoseController enemyPoseController;
     private SpriteRenderer heroRenderer;
@@ -74,6 +75,7 @@ public sealed class StageBattleSequenceController : MonoBehaviour
         }
 
         heroController = hero.GetComponent<HeroController>();
+        heroManualInput = hero.GetComponent<HeroManualInput>();
         heroPoseController = hero.GetComponent<CharacterPoseController>();
         enemyPoseController = enemy.GetComponent<CharacterPoseController>();
         heroRenderer = hero.GetComponent<SpriteRenderer>();
@@ -149,6 +151,12 @@ public sealed class StageBattleSequenceController : MonoBehaviour
     private IEnumerator RunHeroEntrance()
     {
         State = SequenceState.HeroEntering;
+
+        // ProgramRuntime.Start() performs its one-time StopProgram cleanup.
+        // Let that lifecycle callback complete before this scripted travel
+        // becomes the owner of Hero movement and its Walk pose.
+        yield return null;
+
         heroPoseController?.SetBasePose();
         BeginHeroBackgroundScroll();
         yield return MoveActor(
@@ -161,6 +169,8 @@ public sealed class StageBattleSequenceController : MonoBehaviour
         );
 
         EndHeroBackgroundScroll();
+        // Travel ends in the existing Base pose until Briefing completes.
+        heroPoseController?.SetBasePose();
         State = SequenceState.Briefing;
         briefingController.BeginBriefing();
         activeSequence = null;
@@ -180,6 +190,11 @@ public sealed class StageBattleSequenceController : MonoBehaviour
     private IEnumerator RunEnemyEntrance()
     {
         State = SequenceState.EnemyEntering;
+
+        // The enemy owns the world-space entrance movement. Hero remains at
+        // the established battle position, but shares the travel visual while
+        // the background scrolls so the encounter reads as forward motion.
+        heroPoseController?.PlayWalk();
         enemyPoseController?.SetBasePose();
         BeginEncounterBackgroundScroll();
         yield return MoveActor(
@@ -352,6 +367,7 @@ public sealed class StageBattleSequenceController : MonoBehaviour
         bool scrollEncounterTravel)
     {
         SetMovingAnimation(isHero, true);
+        SetStageTravelWalk(isHero, true);
         bool isVictoryHeroExit =
             isHero && State == SequenceState.HeroExiting;
         bool loggedHeroExitFirstFrame = false;
@@ -435,6 +451,7 @@ public sealed class StageBattleSequenceController : MonoBehaviour
         }
 
         SetMovingAnimation(isHero, false);
+        SetStageTravelWalk(isHero, false);
     }
 
     private void BeginHeroBackgroundScroll()
@@ -567,6 +584,15 @@ public sealed class StageBattleSequenceController : MonoBehaviour
         }
 
         heroController.enabled = active;
+
+        // Stage travel owns the Hero's movement and pose, so suppress manual
+        // zero-input updates while it is active. ProgramRuntime owns the
+        // normal scripted-combat policy and disables ManualInput at startup;
+        // do not re-enable it here when stage travel ends.
+        if (!active && heroManualInput != null)
+        {
+            heroManualInput.enabled = false;
+        }
         FreezeActorBody(hero);
     }
 
@@ -607,6 +633,27 @@ public sealed class StageBattleSequenceController : MonoBehaviour
         }
 
         animator.SetBool(moveBoolParameter, isMoving);
+    }
+
+    private void SetStageTravelWalk(bool isHero, bool isMoving)
+    {
+        CharacterPoseController pose = isHero
+            ? heroPoseController
+            : enemyPoseController;
+
+        if (pose == null)
+        {
+            return;
+        }
+
+        if (isMoving)
+        {
+            pose.PlayWalk();
+        }
+        else
+        {
+            pose.StopWalk();
+        }
     }
 
     private static bool HasBoolParameter(Animator animator, string parameter)

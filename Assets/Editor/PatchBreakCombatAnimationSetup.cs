@@ -17,7 +17,12 @@ public static class PatchBreakCombatAnimationSetup
         "Tools/PATCH BREAK/Combat Animation/";
     private const float CharacterPixelsPerUnit = 32f;
     private const float IdleFramesPerSecond = 7f;
+    private const float HeroWalkFramesPerSecond = 14f;
+    private const float GolemWalkFramesPerSecond = 7f;
+    private const float KnightWalkFramesPerSecond = 8f;
+    private const float DebuggerWalkFramesPerSecond = 7f;
     private const float AttackFramesPerSecond = 12f;
+    private const float DeathFramesPerSecond = 10f;
     private const float ProjectileFramesPerSecond = 12f;
     private const float GuardFramesPerSecond = 10f;
     private const float Epsilon = 0.001f;
@@ -42,6 +47,26 @@ public static class PatchBreakCombatAnimationSetup
         AttackFramesPerSecond
     );
 
+    private static readonly SheetSpec HeroWalk = new SheetSpec(
+        "Hero Walk",
+        "Assets/Art/Characters/Hero/Animations/walk/hero_walk_sheet.png",
+        48,
+        48,
+        6,
+        true,
+        HeroWalkFramesPerSecond
+    );
+
+    private static readonly SheetSpec HeroDeath = new SheetSpec(
+        "Hero Death",
+        "Assets/Art/Characters/Hero/Animations/death/hero_death_sheet.png",
+        48,
+        48,
+        6,
+        true,
+        DeathFramesPerSecond
+    );
+
     private static readonly SheetSpec GolemIdle = new SheetSpec(
         "Golem Idle B",
         "Assets/Art/Characters/Golem/Animations/Idle/golem_b_combatidle_sheet.png",
@@ -60,6 +85,26 @@ public static class PatchBreakCombatAnimationSetup
         5,
         true,
         AttackFramesPerSecond
+    );
+
+    private static readonly SheetSpec GolemWalk = new SheetSpec(
+        "Golem Walk",
+        "Assets/Art/Characters/Golem/Animations/walk/golem_walk_sheet.png",
+        64,
+        64,
+        4,
+        true,
+        GolemWalkFramesPerSecond
+    );
+
+    private static readonly SheetSpec GolemDeath = new SheetSpec(
+        "Golem Death",
+        "Assets/Art/Characters/Golem/Animations/death/golem_death_sheet.png",
+        64,
+        64,
+        6,
+        true,
+        DeathFramesPerSecond
     );
 
     private static readonly SheetSpec KnightIdle = new SheetSpec(
@@ -82,6 +127,26 @@ public static class PatchBreakCombatAnimationSetup
         AttackFramesPerSecond
     );
 
+    private static readonly SheetSpec KnightWalk = new SheetSpec(
+        "Knight Walk",
+        "Assets/Art/Characters/Knight/Animations/walk/knight_walk_sheet.png",
+        64,
+        64,
+        6,
+        true,
+        KnightWalkFramesPerSecond
+    );
+
+    private static readonly SheetSpec KnightDeath = new SheetSpec(
+        "Knight Death",
+        "Assets/Art/Characters/Knight/Animations/death/knight_death_sheet.png",
+        64,
+        64,
+        6,
+        true,
+        DeathFramesPerSecond
+    );
+
     private static readonly SheetSpec DebuggerIdle = new SheetSpec(
         "Debugger Idle",
         "Assets/Art/Characters/Debugger/Animations/Idle/debugger_combatidle_sheet.png",
@@ -100,6 +165,26 @@ public static class PatchBreakCombatAnimationSetup
         5,
         true,
         AttackFramesPerSecond
+    );
+
+    private static readonly SheetSpec DebuggerWalk = new SheetSpec(
+        "Debugger Walk",
+        "Assets/Art/Characters/Debugger/Animations/walk/debugger_move_sheet.png",
+        96,
+        96,
+        4,
+        true,
+        DebuggerWalkFramesPerSecond
+    );
+
+    private static readonly SheetSpec DebuggerDeath = new SheetSpec(
+        "Debugger Death",
+        "Assets/Art/Characters/Debugger/Animations/death/debugger_death_sheet.png",
+        96,
+        96,
+        6,
+        true,
+        DeathFramesPerSecond
     );
 
     private static readonly SheetSpec KnightProjectileSheet = new SheetSpec(
@@ -226,12 +311,20 @@ public static class PatchBreakCombatAnimationSetup
     {
         HeroIdle,
         HeroAttack,
+        HeroWalk,
+        HeroDeath,
         GolemIdle,
         GolemAttack,
+        GolemWalk,
+        GolemDeath,
         KnightIdle,
         KnightAttack,
+        KnightWalk,
+        KnightDeath,
         DebuggerIdle,
         DebuggerAttack,
+        DebuggerWalk,
+        DebuggerDeath,
         KnightProjectileSheet,
         DebuggerProjectileSheet,
         KnightImpact,
@@ -251,15 +344,15 @@ public static class PatchBreakCombatAnimationSetup
         new SceneSpec(
             "Assets/Scenes/Battle.unity",
             "Battle",
-            new ActorSpec("Hero", HeroIdle, HeroAttack),
-            new ActorSpec("Golem", GolemIdle, GolemAttack),
+            new ActorSpec("Hero", HeroIdle, HeroWalk, HeroAttack, HeroDeath),
+            new ActorSpec("Golem", GolemIdle, GolemWalk, GolemAttack, GolemDeath),
             null
         ),
         new SceneSpec(
             "Assets/Scenes/KnightBattle.unity",
             "KnightBattle",
-            new ActorSpec("Hero", HeroIdle, HeroAttack),
-            new ActorSpec("Knight", KnightIdle, KnightAttack),
+            new ActorSpec("Hero", HeroIdle, HeroWalk, HeroAttack, HeroDeath),
+            new ActorSpec("Knight", KnightIdle, KnightWalk, KnightAttack, KnightDeath),
             new GuardSpec(
                 KnightGuardStart,
                 KnightGuardLoop,
@@ -269,8 +362,8 @@ public static class PatchBreakCombatAnimationSetup
         new SceneSpec(
             "Assets/Scenes/DebuggerBattle.unity",
             "DebuggerBattle",
-            new ActorSpec("Hero", HeroIdle, HeroAttack),
-            new ActorSpec("Debugger", DebuggerIdle, DebuggerAttack),
+            new ActorSpec("Hero", HeroIdle, HeroWalk, HeroAttack, HeroDeath),
+            new ActorSpec("Debugger", DebuggerIdle, DebuggerWalk, DebuggerAttack, DebuggerDeath),
             new GuardSpec(
                 DebuggerGuardStart,
                 DebuggerGuardLoop,
@@ -558,8 +651,16 @@ public static class PatchBreakCombatAnimationSetup
 
     private static void ConfigureScene(Scene scene, SceneSpec spec)
     {
-        ConfigureCharacter(FindRootOrThrow(scene, spec.Hero.RootName), spec.Hero);
-        ConfigureCharacter(FindRootOrThrow(scene, spec.Enemy.RootName), spec.Enemy);
+        ConfigureCharacter(
+            scene,
+            FindRootOrThrow(scene, spec.Hero.RootName),
+            spec.Hero
+        );
+        ConfigureCharacter(
+            scene,
+            FindRootOrThrow(scene, spec.Enemy.RootName),
+            spec.Enemy
+        );
 
         if (spec.Guard != null)
         {
@@ -572,7 +673,10 @@ public static class PatchBreakCombatAnimationSetup
         EditorSceneManager.MarkSceneDirty(scene);
     }
 
-    private static void ConfigureCharacter(GameObject root, ActorSpec spec)
+    private static void ConfigureCharacter(
+        Scene scene,
+        GameObject root,
+        ActorSpec spec)
     {
         SpriteRenderer renderer = root.GetComponent<SpriteRenderer>();
         CharacterPoseController pose =
@@ -594,11 +698,16 @@ public static class PatchBreakCombatAnimationSetup
             pose,
             sequence,
             LoadFramesOrThrow(spec.Idle),
+            LoadFramesOrThrow(spec.Walk),
             LoadFramesOrThrow(spec.Attack),
+            LoadFramesOrThrow(spec.Death),
             spec.Idle.FramesPerSecond,
+            spec.Walk.FramesPerSecond,
             spec.Attack.FramesPerSecond,
+            spec.Death.FramesPerSecond,
             spec.RootName
         );
+        ConfigureDeathVisual(scene, root, pose, renderer, spec);
 
         // Scene state remains the existing travel/base pose. The stage
         // controller explicitly requests Ready at WaitingForCompile.
@@ -612,18 +721,74 @@ public static class PatchBreakCombatAnimationSetup
         CharacterPoseController pose,
         SpriteSequencePlayer sequence,
         Sprite[] idleFrames,
+        Sprite[] walkFrames,
         Sprite[] attackFrames,
+        Sprite[] deathFrames,
         float idleFramesPerSecond,
+        float walkFramesPerSecond,
         float attackFramesPerSecond,
+        float deathFramesPerSecond,
         string context)
     {
         SerializedObject data = new SerializedObject(pose);
         SetReference(data, "sequencePlayer", sequence, context);
         SetSpriteArray(data, "readyIdleFrames", idleFrames, context);
+        SetSpriteArray(data, "walkFrames", walkFrames, context);
         SetSpriteArray(data, "attackFrames", attackFrames, context);
+        SetSpriteArray(data, "deathFrames", deathFrames, context);
         SetFloat(data, "readyIdleFramesPerSecond", idleFramesPerSecond, context);
+        SetFloat(data, "walkFramesPerSecond", walkFramesPerSecond, context);
         SetFloat(data, "attackFramesPerSecond", attackFramesPerSecond, context);
+        SetFloat(data, "deathFramesPerSecond", deathFramesPerSecond, context);
         data.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    private static void ConfigureDeathVisual(
+        Scene scene,
+        GameObject actorRoot,
+        CharacterPoseController pose,
+        SpriteRenderer actorRenderer,
+        ActorSpec spec)
+    {
+        string rootName = spec.RootName + "DeathVisual";
+        GameObject visualRoot = FindOrCreateSceneRoot(scene, rootName);
+        SpriteRenderer visualRenderer =
+            GetOrAddSingleComponent<SpriteRenderer>(visualRoot, rootName);
+        SpriteSequencePlayer sequence =
+            GetOrAddSingleComponent<SpriteSequencePlayer>(visualRoot, rootName);
+        CharacterDeathVisual deathVisual =
+            GetOrAddSingleComponent<CharacterDeathVisual>(actorRoot, spec.RootName);
+        Sprite[] deathFrames = LoadFramesOrThrow(spec.Death);
+
+        ConfigureSequenceRenderer(sequence, visualRenderer, rootName);
+
+        visualRoot.transform.SetParent(null, false);
+        visualRoot.transform.localPosition = Vector3.zero;
+        visualRoot.transform.localRotation = Quaternion.identity;
+        visualRoot.transform.localScale = Vector3.one;
+        visualRenderer.sortingLayerID = actorRenderer.sortingLayerID;
+        visualRenderer.sortingOrder = actorRenderer.sortingOrder;
+        visualRenderer.color = Color.white;
+        visualRenderer.enabled = false;
+        sequence.SetStatic(deathFrames[0]);
+
+        SerializedObject data = new SerializedObject(deathVisual);
+        SetReference(data, "health", actorRoot.GetComponent<Health>(), spec.RootName);
+        SetReference(data, "poseController", pose, spec.RootName);
+        SetReference(data, "sourceRenderer", actorRenderer, spec.RootName);
+        SetReference(data, "deathVisualRoot", visualRoot.transform, spec.RootName);
+        SetReference(data, "deathRenderer", visualRenderer, spec.RootName);
+        SetReference(data, "sequencePlayer", sequence, spec.RootName);
+        SetSpriteArray(data, "deathFrames", deathFrames, spec.RootName);
+        SetFloat(data, "framesPerSecond", spec.Death.FramesPerSecond, spec.RootName);
+        data.ApplyModifiedPropertiesWithoutUndo();
+
+        // The visual remains a dormant scene-root object until Health.Died.
+        visualRoot.SetActive(false);
+        EditorUtility.SetDirty(visualRoot);
+        EditorUtility.SetDirty(visualRenderer);
+        EditorUtility.SetDirty(sequence);
+        EditorUtility.SetDirty(deathVisual);
     }
 
     private static void ConfigureGuardIndicator(
@@ -994,6 +1159,7 @@ public static class PatchBreakCombatAnimationSetup
         }
 
         ValidateNoMissingComponents(scene, errors);
+        ValidateBrokenObjectReferences(scene, errors);
         ThrowIfErrors(
             spec.Name + ": combat animation validation failed",
             errors
@@ -1016,22 +1182,69 @@ public static class PatchBreakCombatAnimationSetup
             root.GetComponent<CharacterPoseController>();
         SpriteSequencePlayer[] players =
             root.GetComponents<SpriteSequencePlayer>();
+        CharacterDeathVisual[] deathVisuals =
+            root.GetComponents<CharacterDeathVisual>();
+        GameObject deathVisualRoot = FindRootOrAddError(
+            scene,
+            spec.RootName + "DeathVisual",
+            errors
+        );
+        SpriteRenderer deathRenderer = deathVisualRoot != null
+            ? deathVisualRoot.GetComponent<SpriteRenderer>()
+            : null;
+        SpriteSequencePlayer[] deathPlayers = deathVisualRoot != null
+            ? deathVisualRoot.GetComponents<SpriteSequencePlayer>()
+            : System.Array.Empty<SpriteSequencePlayer>();
 
         if (renderer == null || pose == null || players.Length != 1 ||
             players[0].TargetRenderer != renderer ||
             pose.SequencePlayer != players[0] ||
             !SpriteArraysMatch(pose.ReadyIdleFrames, LoadFramesOrThrow(spec.Idle)) ||
+            !SpriteArraysMatch(pose.WalkFrames, LoadFramesOrThrow(spec.Walk)) ||
             !SpriteArraysMatch(pose.AttackFrames, LoadFramesOrThrow(spec.Attack)) ||
+            !SpriteArraysMatch(pose.DeathFrames, LoadFramesOrThrow(spec.Death)) ||
             !Mathf.Approximately(
                 pose.ReadyIdleFramesPerSecond,
                 spec.Idle.FramesPerSecond
             ) ||
             !Mathf.Approximately(
+                pose.WalkFramesPerSecond,
+                spec.Walk.FramesPerSecond
+            ) ||
+            !Mathf.Approximately(
                 pose.AttackFramesPerSecond,
                 spec.Attack.FramesPerSecond
+            ) ||
+            !Mathf.Approximately(
+                pose.DeathFramesPerSecond,
+                spec.Death.FramesPerSecond
             ))
         {
             errors.Add(spec.RootName + ": sequence configuration is invalid.");
+        }
+
+        if (deathVisuals.Length != 1 || deathVisualRoot == null ||
+            deathVisualRoot.transform.parent != null ||
+            deathRenderer == null || deathRenderer.enabled ||
+            deathPlayers.Length != 1 ||
+            deathPlayers[0].TargetRenderer != deathRenderer ||
+            deathVisuals.Length == 0 ||
+            deathVisuals[0].Health != root.GetComponent<Health>() ||
+            deathVisuals[0].PoseController != pose ||
+            deathVisuals[0].SourceRenderer != renderer ||
+            deathVisuals[0].DeathVisualRoot != deathVisualRoot.transform ||
+            deathVisuals[0].DeathRenderer != deathRenderer ||
+            deathVisuals[0].SequencePlayer != deathPlayers[0] ||
+            !SpriteArraysMatch(
+                deathVisuals[0].DeathFrames,
+                LoadFramesOrThrow(spec.Death)
+            ) ||
+            !Mathf.Approximately(
+                deathVisuals[0].FramesPerSecond,
+                spec.Death.FramesPerSecond
+            ))
+        {
+            errors.Add(spec.RootName + ": death visual configuration is invalid.");
         }
     }
 
@@ -1099,6 +1312,45 @@ public static class PatchBreakCombatAnimationSetup
                 if (component == null)
                 {
                     errors.Add(scene.name + ": Missing MonoBehaviour found.");
+                    return;
+                }
+            }
+        }
+    }
+
+    private static void ValidateBrokenObjectReferences(
+        Scene scene,
+        List<string> errors)
+    {
+        foreach (GameObject root in scene.GetRootGameObjects())
+        {
+            foreach (Component component in
+                     root.GetComponentsInChildren<Component>(true))
+            {
+                if (component == null)
+                {
+                    continue;
+                }
+
+                SerializedObject data = new SerializedObject(component);
+                SerializedProperty property = data.GetIterator();
+                bool enterChildren = true;
+                while (property.NextVisible(enterChildren))
+                {
+                    enterChildren = false;
+                    if (property.propertyType !=
+                            SerializedPropertyType.ObjectReference ||
+                        property.objectReferenceValue != null ||
+                        property.objectReferenceInstanceIDValue == 0)
+                    {
+                        continue;
+                    }
+
+                    errors.Add(
+                        scene.name + ": Broken PPtr on " +
+                        component.GetType().Name + "." +
+                        property.propertyPath + "."
+                    );
                     return;
                 }
             }
@@ -1290,6 +1542,21 @@ public static class PatchBreakCombatAnimationSetup
         return result;
     }
 
+    private static GameObject FindOrCreateSceneRoot(
+        Scene scene,
+        string name)
+    {
+        GameObject existing = FindRootOrAddError(scene, name, null);
+        if (existing != null)
+        {
+            return existing;
+        }
+
+        GameObject created = new GameObject(name);
+        SceneManager.MoveGameObjectToScene(created, scene);
+        return created;
+    }
+
     private static GameObject FindRootOrAddError(
         Scene scene,
         string name,
@@ -1420,13 +1687,22 @@ public static class PatchBreakCombatAnimationSetup
     {
         public readonly string RootName;
         public readonly SheetSpec Idle;
+        public readonly SheetSpec Walk;
         public readonly SheetSpec Attack;
+        public readonly SheetSpec Death;
 
-        public ActorSpec(string rootName, SheetSpec idle, SheetSpec attack)
+        public ActorSpec(
+            string rootName,
+            SheetSpec idle,
+            SheetSpec walk,
+            SheetSpec attack,
+            SheetSpec death)
         {
             RootName = rootName;
             Idle = idle;
+            Walk = walk;
             Attack = attack;
+            Death = death;
         }
     }
 
