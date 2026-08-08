@@ -14,6 +14,7 @@ public static class PatchBreakArtAssetsSetup
         "Tools/PATCH BREAK/Background/";
     private const string BackgroundRootName = "Background";
     private const string DefaultSortingLayer = "Default";
+    private const string CharacterImportSpecName = "Characters";
 
     private static readonly ImportSpec[] ImportSpecs =
     {
@@ -162,7 +163,7 @@ public static class PatchBreakArtAssetsSetup
                     );
                 }
 
-                ConfigureImporter(importer, spec.PixelsPerUnit);
+                ConfigureImporter(importer, spec);
                 importer.SaveAndReimport();
             }
         }
@@ -172,16 +173,25 @@ public static class PatchBreakArtAssetsSetup
 
     private static void ConfigureImporter(
         TextureImporter importer,
-        float pixelsPerUnit
+        ImportSpec spec
     )
     {
+        bool isCharacterSprite = spec.Name == CharacterImportSpecName;
+        Vector2 spritePivot = isCharacterSprite
+            ? new Vector2(0.5f, 0f)
+            : new Vector2(0.5f, 0.5f);
+
         importer.textureType = TextureImporterType.Sprite;
         importer.spriteImportMode = SpriteImportMode.Single;
-        importer.spritePixelsPerUnit = pixelsPerUnit;
-        importer.spritePivot = new Vector2(0.5f, 0.5f);
+        importer.spritePixelsPerUnit = spec.PixelsPerUnit;
+        importer.spritePivot = spritePivot;
         TextureImporterSettings settings = new();
         importer.ReadTextureSettings(settings);
         settings.spriteMeshType = SpriteMeshType.FullRect;
+        settings.spriteAlignment = isCharacterSprite
+            ? (int)SpriteAlignment.BottomCenter
+            : (int)SpriteAlignment.Center;
+        settings.spritePivot = spritePivot;
         importer.SetTextureSettings(settings);
         importer.filterMode = FilterMode.Point;
         importer.textureCompression = TextureImporterCompression.Uncompressed;
@@ -296,10 +306,24 @@ public static class PatchBreakArtAssetsSetup
 
         TextureImporterSettings settings = new();
         importer.ReadTextureSettings(settings);
+        bool isCharacterSprite = spec.Name == CharacterImportSpecName;
+        Vector2 expectedPivot = isCharacterSprite
+            ? new Vector2(0.5f, 0f)
+            : new Vector2(0.5f, 0.5f);
+        int expectedAlignment = isCharacterSprite
+            ? (int)SpriteAlignment.BottomCenter
+            : (int)SpriteAlignment.Center;
 
         if (settings.spriteMeshType != SpriteMeshType.FullRect)
         {
             errors.Add($"{assetPath}: Mesh Type is not Full Rect.");
+        }
+
+        if (settings.spriteAlignment != expectedAlignment ||
+            !Mathf.Approximately(settings.spritePivot.x, expectedPivot.x) ||
+            !Mathf.Approximately(settings.spritePivot.y, expectedPivot.y))
+        {
+            errors.Add($"{assetPath}: Sprite Pivot is incorrect.");
         }
 
         if (!importer.alphaIsTransparency)
