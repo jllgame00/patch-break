@@ -9,7 +9,12 @@ using UnityEngine.UI;
 
 public sealed class BattleBriefingController : MonoBehaviour
 {
-    private const int MaxBubbleLinesPerPage = 7;
+    private const float BubbleWidth = 500f;
+    private const float BubbleHeight = 260f;
+    private const float BubbleBodyLeftRightPadding = 18f;
+    private const float BubbleBodyTopPadding = 46f;
+    private const float BubbleFooterHeight = 50f;
+    private const float BubblePageHeightTolerance = 0.5f;
 
     [Header("Briefing UI")]
     [SerializeField] private GameObject briefingRoot;
@@ -357,7 +362,7 @@ public sealed class BattleBriefingController : MonoBehaviour
         rootRect.anchorMax = new Vector2(0f, 1f);
         rootRect.pivot = new Vector2(0f, 1f);
         rootRect.anchoredPosition = new Vector2(32f, -32f);
-        rootRect.sizeDelta = new Vector2(500f, 220f);
+        rootRect.sizeDelta = new Vector2(BubbleWidth, BubbleHeight);
         rootRect.SetAsLastSibling();
 
         CreateBubbleTail(rootRect);
@@ -377,43 +382,58 @@ public sealed class BattleBriefingController : MonoBehaviour
         speakerNameText = CreateBubbleText("SpeakerName", rootRect);
         SetTopLeftRect(
             speakerNameText.rectTransform,
-            new Vector2(20f, -16f),
-            new Vector2(330f, 25f)
+            new Vector2(18f, -13f),
+            new Vector2(360f, 26f)
         );
         ConfigureBubbleText(
             speakerNameText,
-            15f,
+            16f,
             TextAlignmentOptions.Left,
             new Color(0.20f, 0.97f, 0.81f, 1f)
         );
         speakerNameText.fontStyle = FontStyles.Bold;
+        speakerNameText.textWrappingMode = TextWrappingModes.NoWrap;
+        speakerNameText.overflowMode = TextOverflowModes.Ellipsis;
 
         messageText = CreateBubbleText("MessageText", rootRect);
         Stretch(
             messageText.rectTransform,
-            new Vector2(20f, 42f),
-            new Vector2(-20f, -49f)
+            new Vector2(
+                BubbleBodyLeftRightPadding,
+                BubbleFooterHeight
+            ),
+            new Vector2(
+                -BubbleBodyLeftRightPadding,
+                -BubbleBodyTopPadding
+            )
         );
         ConfigureBubbleText(
             messageText,
-            17f,
+            16f,
             TextAlignmentOptions.TopLeft,
             new Color(0.92f, 0.96f, 0.97f, 1f)
         );
-        messageText.lineSpacing = -5f;
+        // The body has a fixed rectangle above the footer. Pages are fitted
+        // against this exact rectangle, and Truncate is a last-resort guard
+        // against text drawing over the NEXT / START MISSION controls.
+        messageText.lineSpacing = -1f;
+        messageText.paragraphSpacing = 4f;
+        messageText.overflowMode = TextOverflowModes.Truncate;
 
         nextIndicatorText = CreateBubbleText("NextIndicator", rootRect);
         SetBottomLeftRect(
             nextIndicatorText.rectTransform,
-            new Vector2(20f, 14f),
-            new Vector2(210f, 25f)
+            new Vector2(18f, 13f),
+            new Vector2(220f, 21f)
         );
         ConfigureBubbleText(
             nextIndicatorText,
-            13f,
+            12f,
             TextAlignmentOptions.Left,
             new Color(0.50f, 0.80f, 0.79f, 1f)
         );
+        nextIndicatorText.textWrappingMode = TextWrappingModes.NoWrap;
+        nextIndicatorText.overflowMode = TextOverflowModes.Ellipsis;
 
         continueButton = CreateContinueButton(rootRect);
         continueButton.onClick.AddListener(AdvanceBriefing);
@@ -445,8 +465,8 @@ public sealed class BattleBriefingController : MonoBehaviour
         buttonImage.rectTransform.anchorMin = new Vector2(1f, 0f);
         buttonImage.rectTransform.anchorMax = new Vector2(1f, 0f);
         buttonImage.rectTransform.pivot = new Vector2(1f, 0f);
-        buttonImage.rectTransform.anchoredPosition = new Vector2(-16f, 10f);
-        buttonImage.rectTransform.sizeDelta = new Vector2(126f, 31f);
+        buttonImage.rectTransform.anchoredPosition = new Vector2(-16f, 9f);
+        buttonImage.rectTransform.sizeDelta = new Vector2(118f, 28f);
         buttonImage.color = new Color(0.06f, 0.28f, 0.27f, 0.92f);
 
         Outline border = buttonImage.gameObject.AddComponent<Outline>();
@@ -464,6 +484,8 @@ public sealed class BattleBriefingController : MonoBehaviour
             TextAlignmentOptions.Center,
             Color.white
         );
+        continueButtonText.textWrappingMode = TextWrappingModes.NoWrap;
+        continueButtonText.overflowMode = TextOverflowModes.Ellipsis;
 
         return button;
     }
@@ -562,17 +584,18 @@ public sealed class BattleBriefingController : MonoBehaviour
     private void BuildBriefingPages()
     {
         briefingPages.Clear();
+        Canvas.ForceUpdateCanvases();
 
         string missionAndTitle = string.IsNullOrWhiteSpace(titleCopy)
             ? missionText
             : $"{missionText} / {titleCopy}";
 
-        AppendLegacyCopyAsPages(missionAndTitle, descriptionCopy);
-        AppendLegacyCopyAsPages(
+        AppendCopyAsLayoutPages(missionAndTitle, descriptionCopy);
+        AppendCopyAsLayoutPages(
             $"{missionText} / SYSTEM RULES",
             rulesCopy
         );
-        AppendLegacyCopyAsPages(
+        AppendCopyAsLayoutPages(
             $"{missionText} / CONTROLS",
             controlsCopy
         );
@@ -583,49 +606,341 @@ public sealed class BattleBriefingController : MonoBehaviour
                 new BriefingPage(missionAndTitle, "READY.")
             );
         }
+
+        ValidateBubblePageLayout();
     }
 
-    private void AppendLegacyCopyAsPages(string speaker, string source)
+    private void AppendCopyAsLayoutPages(string speaker, string source)
     {
-        List<string> lines = NormalizeForBubble(source);
-
-        for (int index = 0; index < lines.Count; index += MaxBubbleLinesPerPage)
+        List<List<string>> blocks = BuildBubbleBlocks(source);
+        if (blocks.Count == 0)
         {
-            int lineCount = Mathf.Min(
-                MaxBubbleLinesPerPage,
-                lines.Count - index
-            );
-            briefingPages.Add(
-                new BriefingPage(
+            return;
+        }
+
+        List<List<string>> pageBlocks = new();
+
+        foreach (List<string> block in blocks)
+        {
+            List<List<string>> candidate = new(pageBlocks) { block };
+            if (DoesPageFit(candidate))
+            {
+                pageBlocks.Add(block);
+                continue;
+            }
+
+            if (pageBlocks.Count > 0)
+            {
+                AddBubblePage(speaker, pageBlocks);
+                pageBlocks.Clear();
+            }
+
+            if (DoesPageFit(new List<List<string>> { block }))
+            {
+                pageBlocks.Add(block);
+                continue;
+            }
+
+            // A single semantic section is too tall. Split it only at its
+            // source lines and repeat an existing section heading as needed,
+            // so a header can never be stranded without its own content.
+            AppendOversizedBlockAsPages(speaker, block);
+        }
+
+        if (pageBlocks.Count > 0)
+        {
+            AddBubblePage(speaker, pageBlocks);
+        }
+    }
+
+    private static List<List<string>> BuildBubbleBlocks(string source)
+    {
+        List<List<string>> blocks = new();
+        List<string> currentSection = null;
+
+        foreach (List<string> paragraph in SplitBubbleParagraphs(source))
+        {
+            bool isHeadingParagraph = paragraph.Count == 1 &&
+                IsSectionHeading(paragraph[0]);
+
+            if (isHeadingParagraph)
+            {
+                if (IsInlineSectionHeading(paragraph[0]) &&
+                    currentSection != null)
+                {
+                    // EXAMPLE is deliberately part of the preceding rule
+                    // section. This keeps the heading and its DSL source
+                    // together instead of creating an orphaned example page.
+                    currentSection.Add(paragraph[0]);
+                    continue;
+                }
+
+                if (currentSection != null && currentSection.Count > 0)
+                {
+                    blocks.Add(currentSection);
+                }
+
+                currentSection = new List<string>(paragraph);
+                continue;
+            }
+
+            if (currentSection != null)
+            {
+                // A heading owns all following source paragraphs until the
+                // next heading. This keeps "AVAILABLE ACTIONS" with its
+                // actions while allowing ordinary upper-case content lines
+                // (for example Debugger capability names) to stay content.
+                currentSection.AddRange(paragraph);
+                continue;
+            }
+
+            // Narrative paragraphs have no section header, so retain their
+            // authored paragraph boundary through ComposeBubbleMessage.
+            blocks.Add(paragraph);
+        }
+
+        if (currentSection != null && currentSection.Count > 0)
+        {
+            blocks.Add(currentSection);
+        }
+
+        return blocks;
+    }
+
+    private void AppendOversizedBlockAsPages(
+        string speaker,
+        List<string> block)
+    {
+        bool hasSectionHeading = block.Count > 1 &&
+            IsSectionHeading(block[0]);
+        string sectionHeading = hasSectionHeading ? block[0] : null;
+        int lineIndex = hasSectionHeading ? 1 : 0;
+        List<string> fragment = hasSectionHeading
+            ? new List<string> { sectionHeading }
+            : new List<string>();
+
+        while (lineIndex < block.Count)
+        {
+            fragment.Add(block[lineIndex]);
+            if (DoesPageFit(new List<List<string>> { fragment }))
+            {
+                lineIndex++;
+                continue;
+            }
+
+            fragment.RemoveAt(fragment.Count - 1);
+            bool headingWouldBeOrphaned = hasSectionHeading &&
+                fragment.Count == 1;
+
+            if (fragment.Count == 0 || headingWouldBeOrphaned)
+            {
+                // This should only be reachable for one extraordinarily long
+                // source line. Keep the original text rather than silently
+                // deleting it; the post-build validation reports the issue.
+                fragment.Add(block[lineIndex]);
+                AddBubblePage(
                     speaker,
-                    string.Join("\n", lines.GetRange(index, lineCount))
-                )
+                    new List<List<string>> { fragment }
+                );
+                lineIndex++;
+            }
+            else
+            {
+                AddBubblePage(
+                    speaker,
+                    new List<List<string>> { fragment }
+                );
+            }
+
+            fragment = hasSectionHeading
+                ? new List<string> { sectionHeading }
+                : new List<string>();
+        }
+
+        if (fragment.Count > 0 &&
+            (!hasSectionHeading || fragment.Count > 1))
+        {
+            AddBubblePage(
+                speaker,
+                new List<List<string>> { fragment }
             );
         }
     }
 
-    private static List<string> NormalizeForBubble(string source)
+    private void AddBubblePage(
+        string speaker,
+        List<List<string>> blocks)
     {
-        List<string> lines = new();
+        string message = ComposeBubbleMessage(blocks);
+        if (!string.IsNullOrEmpty(message))
+        {
+            briefingPages.Add(new BriefingPage(speaker, message));
+        }
+    }
+
+    private bool DoesPageFit(List<List<string>> blocks)
+    {
+        if (messageText == null)
+        {
+            return false;
+        }
+
+        string message = ComposeBubbleMessage(blocks);
+        float preferredHeight = messageText.GetPreferredValues(
+            message,
+            messageText.rectTransform.rect.width,
+            0f
+        ).y;
+
+        return preferredHeight <= messageText.rectTransform.rect.height +
+            BubblePageHeightTolerance;
+    }
+
+    private static string ComposeBubbleMessage(List<List<string>> blocks)
+    {
+        StringBuilder builder = new();
+
+        foreach (List<string> block in blocks)
+        {
+            if (block == null || block.Count == 0)
+            {
+                continue;
+            }
+
+            if (builder.Length > 0)
+            {
+                builder.Append("\n\n");
+            }
+
+            for (int index = 0; index < block.Count; index++)
+            {
+                if (index > 0)
+                {
+                    builder.Append('\n');
+                }
+
+                string line = block[index];
+                if (index > 0 && IsInlineSectionHeading(line))
+                {
+                    builder.Append('\n');
+                }
+
+                if ((index == 0 && IsSectionHeading(line)) ||
+                    IsInlineSectionHeading(line))
+                {
+                    builder.Append("<b>").Append(line).Append("</b>");
+                }
+                else
+                {
+                    builder.Append(line);
+                }
+            }
+        }
+
+        return builder.ToString();
+    }
+
+    private static bool IsSectionHeading(string line)
+    {
+        if (string.IsNullOrWhiteSpace(line) || line.Contains("=>"))
+        {
+            return false;
+        }
+
+        bool hasAsciiLetter = false;
+        foreach (char character in line)
+        {
+            if (character >= 'a' && character <= 'z')
+            {
+                return false;
+            }
+
+            if (character >= 'A' && character <= 'Z')
+            {
+                hasAsciiLetter = true;
+            }
+        }
+
+        return hasAsciiLetter;
+    }
+
+    private static bool IsInlineSectionHeading(string line)
+    {
+        return string.Equals(
+            line,
+            "EXAMPLE",
+            StringComparison.OrdinalIgnoreCase
+        );
+    }
+
+    private void ValidateBubblePageLayout()
+    {
+        if (messageText == null)
+        {
+            return;
+        }
+
+        float bodyHeight = messageText.rectTransform.rect.height;
+        float bodyWidth = messageText.rectTransform.rect.width;
+
+        for (int index = 0; index < briefingPages.Count; index++)
+        {
+            BriefingPage page = briefingPages[index];
+            float preferredHeight = messageText.GetPreferredValues(
+                page.Message,
+                bodyWidth,
+                0f
+            ).y;
+
+            if (preferredHeight > bodyHeight + BubblePageHeightTolerance)
+            {
+                Debug.LogError(
+                    "BattleBriefingController: Bubble page does not fit " +
+                    $"page={index + 1}/{briefingPages.Count} " +
+                    $"preferredHeight={preferredHeight:0.##} " +
+                    $"bodyHeight={bodyHeight:0.##}",
+                    this
+                );
+            }
+        }
+    }
+
+    private static List<List<string>> SplitBubbleParagraphs(string source)
+    {
+        List<List<string>> paragraphs = new();
 
         if (string.IsNullOrWhiteSpace(source))
         {
-            return lines;
+            return paragraphs;
         }
 
         string[] rawLines = source.Replace("\r\n", "\n").Split('\n');
+        List<string> currentParagraph = new();
 
         foreach (string rawLine in rawLines)
         {
             string line = rawLine.Trim();
 
-            if (!string.IsNullOrEmpty(line))
+            if (string.IsNullOrEmpty(line))
             {
-                lines.Add(line);
+                if (currentParagraph.Count > 0)
+                {
+                    paragraphs.Add(currentParagraph);
+                    currentParagraph = new List<string>();
+                }
+
+                continue;
             }
+
+            currentParagraph.Add(line);
         }
 
-        return lines;
+        if (currentParagraph.Count > 0)
+        {
+            paragraphs.Add(currentParagraph);
+        }
+
+        return paragraphs;
     }
 
     private void PresentCurrentPage()
