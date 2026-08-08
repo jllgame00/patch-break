@@ -46,6 +46,8 @@ public sealed class StageBattleSequenceController : MonoBehaviour
     [SerializeField] private string moveBoolParameter = "IsMoving";
 
     private HeroController heroController;
+    private CharacterPoseController heroPoseController;
+    private CharacterPoseController enemyPoseController;
     private Rigidbody2D heroBody;
     private Rigidbody2D enemyBody;
     private Coroutine activeSequence;
@@ -71,6 +73,8 @@ public sealed class StageBattleSequenceController : MonoBehaviour
         }
 
         heroController = hero.GetComponent<HeroController>();
+        heroPoseController = hero.GetComponent<CharacterPoseController>();
+        enemyPoseController = enemy.GetComponent<CharacterPoseController>();
         heroBody = hero.GetComponent<Rigidbody2D>();
         enemyBody = enemy.GetComponent<Rigidbody2D>();
 
@@ -128,6 +132,7 @@ public sealed class StageBattleSequenceController : MonoBehaviour
 
     private void PrepareEntranceState()
     {
+        SetStageTravelPoses();
         runtimeConsoleUI.SetEditorInputLocked(true);
         SuspendSequencePhysics();
         SetHeroControlActive(false);
@@ -142,6 +147,7 @@ public sealed class StageBattleSequenceController : MonoBehaviour
     private IEnumerator RunHeroEntrance()
     {
         State = SequenceState.HeroEntering;
+        heroPoseController?.SetBasePose();
         BeginHeroBackgroundScroll();
         yield return MoveActor(
             hero,
@@ -172,6 +178,7 @@ public sealed class StageBattleSequenceController : MonoBehaviour
     private IEnumerator RunEnemyEntrance()
     {
         State = SequenceState.EnemyEntering;
+        enemyPoseController?.SetBasePose();
         BeginEncounterBackgroundScroll();
         yield return MoveActor(
             enemy,
@@ -182,6 +189,8 @@ public sealed class StageBattleSequenceController : MonoBehaviour
             true
         );
         EndEncounterBackgroundScroll();
+
+        SetCombatReadyPoses();
 
         SetHeroControlActive(true);
         RestoreSequencePhysics();
@@ -199,6 +208,7 @@ public sealed class StageBattleSequenceController : MonoBehaviour
         }
 
         victoryExitRequested = true;
+        heroPoseController?.SetBasePose();
         activeSequence = StartCoroutine(RunVictoryExit());
     }
 
@@ -216,6 +226,7 @@ public sealed class StageBattleSequenceController : MonoBehaviour
         }
 
         State = SequenceState.HeroExiting;
+        heroPoseController?.SetBasePose();
         BeginHeroBackgroundScroll();
         yield return MoveActor(
             hero,
@@ -382,6 +393,18 @@ public sealed class StageBattleSequenceController : MonoBehaviour
         }
 
         sequencePhysicsSuspended = false;
+    }
+
+    private void SetStageTravelPoses()
+    {
+        heroPoseController?.SetBasePose();
+        enemyPoseController?.SetBasePose();
+    }
+
+    private void SetCombatReadyPoses()
+    {
+        heroPoseController?.SetReadyPose();
+        enemyPoseController?.SetReadyPose();
     }
 
     private void SetHeroControlActive(bool active)

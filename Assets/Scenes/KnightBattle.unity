@@ -2704,6 +2704,7 @@ GameObject:
   - component: {fileID: 1076982210}
   - component: {fileID: 1076982211}
   - component: {fileID: 1076982212}
+  - component: {fileID: 1076982213}
   m_Layer: 8
   m_Name: Hero
   m_TagString: Untagged
@@ -3012,6 +3013,22 @@ MonoBehaviour:
   flashDuration: 0.07
   shakeDuration: 0.1
   shakeStrength: 0.1
+--- !u!114 &1076982213
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1076982199}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ae7ccc27bc9d2604383285fa3cf27bcb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CharacterPoseController
+  targetRenderer: {fileID: 1076982202}
+  baseSprite: {fileID: 21300000, guid: 44b6984dcb47eb14a8aea9464dc44882, type: 3}
+  readySprite: {fileID: 21300000, guid: 1f4518807ac55174297b00df404e7bd8, type: 3}
+  phaseSprite: {fileID: 0}
 --- !u!1 &1078670603
 GameObject:
   m_ObjectHideFlags: 0
@@ -4279,6 +4296,7 @@ GameObject:
   - component: {fileID: 1388358289}
   - component: {fileID: 1388358291}
   - component: {fileID: 1388358292}
+  - component: {fileID: 1388358293}
   m_Layer: 7
   m_Name: Knight
   m_TagString: Untagged
@@ -4524,6 +4542,22 @@ MonoBehaviour:
   forcedRangedBackstepDuration: 0.18
   attackColor: {r: 1, g: 0.2, b: 0.15, a: 1}
   guardColor: {r: 0.15, g: 0.55, b: 1, a: 1}
+--- !u!114 &1388358293
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1388358283}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ae7ccc27bc9d2604383285fa3cf27bcb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CharacterPoseController
+  targetRenderer: {fileID: 1388358286}
+  baseSprite: {fileID: 21300000, guid: 01df3a81c82a772458939e0c7cd1ac4c, type: 3}
+  readySprite: {fileID: 21300000, guid: 2228d80875ea36e4d91c5fcf260bdc7d, type: 3}
+  phaseSprite: {fileID: 0}
 --- !u!1 &1430934172
 GameObject:
   m_ObjectHideFlags: 0
