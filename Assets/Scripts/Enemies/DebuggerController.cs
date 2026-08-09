@@ -686,9 +686,21 @@ public sealed class DebuggerController : MonoBehaviour
 
         PlayAttackVisual();
 
+        Collider2D heroCollider = GetHeroCollider();
+        Vector2 hitCenter = meleeAttackPoint.position;
+
+        // The large Debugger's visual attack anchor is above the Hero's
+        // compact body collider. Keep the horizontal sword reach, but sample
+        // at the actual target torso so the displayed close-range swing and
+        // gameplay overlap agree.
+        if (heroCollider != null)
+        {
+            hitCenter.y = heroCollider.bounds.center.y;
+        }
+
         Collider2D[] hits =
             Physics2D.OverlapCircleAll(
-                meleeAttackPoint.position,
+                hitCenter,
                 meleeRadius,
                 targetLayer
             );
@@ -725,6 +737,18 @@ public sealed class DebuggerController : MonoBehaviour
                 ? "DEBUGGER: MELEE HIT"
                 : "DEBUGGER: MELEE MISSED"
         );
+
+        if (verboseTelegraphLogging)
+        {
+            Debug.Log(
+                "[DBG_MELEE_HIT] " +
+                $"attackPoint={meleeAttackPoint.position:F2} " +
+                $"sampleCenter={hitCenter:F2} " +
+                $"radius={meleeRadius:F2} " +
+                $"heroBounds={FormatBounds(heroCollider)} " +
+                $"hit={processed.Count > 0}"
+            );
+        }
     }
 
     // Presentation-only reuse of the established melee swing pose. Damage
@@ -751,14 +775,25 @@ public sealed class DebuggerController : MonoBehaviour
         float direction =
             GetLockedProjectileDirection();
 
+        Collider2D heroCollider = GetHeroCollider();
+        Vector3 visualSpawnPosition =
+            ResolveProjectileSpawnPosition();
+        Vector3 spawnPosition =
+            ResolveProjectileGameplaySpawnPosition(heroCollider);
+
         activeProjectile =
             Instantiate(
                 projectilePrefab,
-                projectileSpawnPoint.position,
+                spawnPosition,
                 Quaternion.identity
-            );
+        );
 
         activeProjectile.SetVisualStyle(ProjectileVisualStyle.Debugger);
+        activeProjectile.SetDebuggerVisualWorldCenterY(
+            visualSpawnPosition.y
+        );
+        activeProjectile.SetDebuggerGeometryTarget(heroCollider);
+
         activeProjectile.Launch(
             direction,
             lockedProjectileTargetX,
@@ -773,7 +808,7 @@ public sealed class DebuggerController : MonoBehaviour
         {
             Debug.Log(
                 "DEBUGGER PROJECTILE SPAWNED\n" +
-                $"spawnX={projectileSpawnPoint.position.x:F2}\n" +
+                $"spawn={spawnPosition:F2}\n" +
                 $"targetX={lockedProjectileTargetX:F2}\n" +
                 $"direction={direction:F0}"
             );
@@ -1743,7 +1778,7 @@ public sealed class DebuggerController : MonoBehaviour
             GetLockedProjectileDirection();
 
         Vector3 position =
-            projectileSpawnPoint.position;
+            ResolveProjectileSpawnPosition();
 
         projectileTelegraph.transform.position =
             position;
@@ -1812,6 +1847,50 @@ public sealed class DebuggerController : MonoBehaviour
         }
 
         return true;
+    }
+
+    private Vector3 ResolveProjectileSpawnPosition()
+    {
+        // Presentation anchor for the telegraph and the ProjectileVisual.
+        return projectileSpawnPoint.position;
+    }
+
+    private Vector3 ResolveProjectileGameplaySpawnPosition(
+        Collider2D heroCollider)
+    {
+        Vector3 position = ResolveProjectileSpawnPosition();
+
+        // The collision root follows the established, successful torso
+        // trajectory. The renderer is shifted separately after Instantiate.
+        if (heroCollider != null)
+        {
+            position.y = heroCollider.bounds.center.y;
+        }
+
+        return position;
+    }
+
+    private Collider2D GetHeroCollider()
+    {
+        if (targetHero != null)
+        {
+            return targetHero.GetComponent<Collider2D>();
+        }
+
+        return target != null
+            ? target.GetComponent<Collider2D>()
+            : null;
+    }
+
+    private static string FormatBounds(Collider2D collider)
+    {
+        if (collider == null)
+        {
+            return "none";
+        }
+
+        Bounds bounds = collider.bounds;
+        return $"center={bounds.center:F2} size={bounds.size:F2}";
     }
 
     private float GetLockedProjectileDirection()

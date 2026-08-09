@@ -287,6 +287,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::KnightProjectile
   knightVisualLocalScale: {x: 2, y: 8.333334, z: 1}
   debuggerVisualLocalScale: {x: -2.4, y: 10, z: 1}
+  debuggerColliderSize: {x: 5.2, y: 18}
+  debuggerColliderOffset: {x: 0, y: 0}
+  debuggerTravelPastTargetDistance: 2
   speed: 8
   lifetime: 4
   damage: 20

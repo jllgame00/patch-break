@@ -9,6 +9,12 @@ using UnityEngine;
 [DefaultExecutionOrder(-100)]
 public sealed class DebuggerCombatCameraFollow : MonoBehaviour
 {
+    private enum CombatFramingStopReason
+    {
+        RuntimeStateExit,
+        DisableTeardown
+    }
+
     [Header("Scene References")]
     [SerializeField] private Camera targetCamera;
     [SerializeField] private StageBattleSequenceController stageSequence;
@@ -83,7 +89,9 @@ public sealed class DebuggerCombatCameraFollow : MonoBehaviour
             hero == null ||
             debugger == null)
         {
-            StopCombatFraming();
+            StopCombatFraming(
+                CombatFramingStopReason.RuntimeStateExit
+            );
             return;
         }
 
@@ -93,7 +101,13 @@ public sealed class DebuggerCombatCameraFollow : MonoBehaviour
 
     private void OnDisable()
     {
-        StopCombatFraming();
+        // SceneManager.LoadScene disables scene objects in an unspecified
+        // order. The parallax object can therefore already be destroyed here;
+        // ending a visual source is still safe, but final viewport coverage
+        // validation is no longer meaningful during teardown.
+        StopCombatFraming(
+            CombatFramingStopReason.DisableTeardown
+        );
     }
 
     private void FollowCombatBounds()
@@ -197,7 +211,8 @@ public sealed class DebuggerCombatCameraFollow : MonoBehaviour
         LogDiagnosticsIfNeeded();
     }
 
-    private void StopCombatFraming()
+    private void StopCombatFraming(
+        CombatFramingStopReason reason)
     {
         EndCameraParallaxIfNeeded();
 
@@ -210,27 +225,33 @@ public sealed class DebuggerCombatCameraFollow : MonoBehaviour
         screenEscapeLogged = false;
         constraintConflictLogged = false;
 
-        bool coverageRestored;
-        if (parallaxBackground == null)
+        bool coverageValidated =
+            reason == CombatFramingStopReason.RuntimeStateExit;
+        bool coverageRestored = true;
+
+        if (coverageValidated)
         {
-            LogCoverageDependencyError("parallaxBackground");
-            coverageRestored = false;
-        }
-        else if (targetCamera == null)
-        {
-            LogCoverageDependencyError("targetCamera");
-            coverageRestored = false;
-        }
-        else
-        {
-            coverageRestored =
-                parallaxBackground.EnsureCameraViewportCoverage(
-                    targetCamera
-                );
+            if (parallaxBackground == null)
+            {
+                LogCoverageDependencyError("parallaxBackground");
+                coverageRestored = false;
+            }
+            else if (targetCamera == null)
+            {
+                LogCoverageDependencyError("targetCamera");
+                coverageRestored = false;
+            }
+            else
+            {
+                coverageRestored =
+                    parallaxBackground.EnsureCameraViewportCoverage(
+                        targetCamera
+                    );
+            }
         }
 
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
-        if (!coverageRestored)
+        if (coverageValidated && !coverageRestored)
         {
             Debug.LogError(
                 "COMBAT_CAMERA_STOP_BACKGROUND_COVERAGE_FAILED",
@@ -243,7 +264,10 @@ public sealed class DebuggerCombatCameraFollow : MonoBehaviour
         {
             Debug.Log(
                 "CAMERA_FOLLOW_STOP " +
-                $"backgroundCoverage={coverageRestored}"
+                $"reason={reason} " +
+                $"coverageValidated={coverageValidated} " +
+                $"backgroundCoverage={coverageRestored} " +
+                $"parallaxAlive={parallaxBackground != null}"
             );
         }
     }
