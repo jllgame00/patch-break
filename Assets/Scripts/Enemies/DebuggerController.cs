@@ -237,6 +237,19 @@ public sealed class DebuggerController : MonoBehaviour
     private float predictiveDangerCenterX;
     private float predictiveDangerCenterY;
     private float predictiveDangerWidth;
+    // The damage remains a precise landing zone. These separate endpoints are
+    // presentation-only: they show the full predicted retreat path so the
+    // purple warning retains the original readable presence.
+    private float predictiveTelegraphMinX;
+    private float predictiveTelegraphMaxX;
+    private float predictiveHeroStartX;
+    private float predictiveDashDistance;
+    private float predictiveExpectedEndX;
+    private int projectileSequenceIndex;
+    private bool rangedSpacingPrepared;
+    private bool activeRangedForced;
+    private bool activeRangedAfterSpacing;
+    private float activeRangedStartX;
     private bool createdPredictiveTelegraphAtRuntime;
     private Material predictiveTelegraphMaterial;
     private bool firstPredictiveHitHandled;
@@ -490,6 +503,22 @@ public sealed class DebuggerController : MonoBehaviour
             }
         }
 
+        // The post-projectile path already establishes the intended normal
+        // ranged spacing. Use that same existing approach before an initial
+        // long-range shot, rather than giving shot one a special endpoint.
+        if (GetHorizontalTargetDistance() > advanceStopDistance)
+        {
+            LogActionSelection(distance, "RANGED SPACING ADVANCE");
+            StartAction(
+                "RANGED_SPACING_ADVANCE",
+                AdvanceTowardHeroRoutine(
+                    AdvanceReason.RangedSpacing
+                )
+            );
+
+            return;
+        }
+
         if (distance <= meleeTriggerDistance)
         {
             if (adaptiveGuardReady)
@@ -592,6 +621,10 @@ public sealed class DebuggerController : MonoBehaviour
     private IEnumerator RangedAttackRoutine(bool forced)
     {
         isRangedAction = true;
+        activeRangedForced = forced;
+        activeRangedAfterSpacing = rangedSpacingPrepared;
+        rangedSpacingPrepared = false;
+        activeRangedStartX = transform.position.x;
 
         LogRangedEvent(
             $"ENTER forced={forced.ToString().ToUpperInvariant()}"
@@ -793,6 +826,16 @@ public sealed class DebuggerController : MonoBehaviour
             visualSpawnPosition.y
         );
         activeProjectile.SetDebuggerGeometryTarget(heroCollider);
+        activeProjectile.SetDebuggerTravelDiagnostics(
+            ++projectileSequenceIndex,
+            activeAdaptationProfile.ToString(),
+            backDashAdaptationEnabled,
+            activeRangedForced,
+            activeRangedAfterSpacing,
+            activeRangedStartX,
+            transform.position.x,
+            target != null ? target.position.x : lockedProjectileTargetX
+        );
 
         activeProjectile.Launch(
             direction,
@@ -1109,19 +1152,28 @@ public sealed class DebuggerController : MonoBehaviour
             awayDirection = Mathf.Sign(awayDirection);
         }
 
+        float dashDistance = GetPredictedDashDistance();
         float predictedBackDashX =
             heroStartX +
-            awayDirection * predictedDashDistance;
+            awayDirection * dashDistance;
 
-        predictiveDangerMinX = Mathf.Min(
-            heroStartX,
-            predictedBackDashX
-        ) - predictiveDangerPadding;
+        predictiveHeroStartX = heroStartX;
+        predictiveDashDistance = dashDistance;
+        predictiveExpectedEndX = predictedBackDashX;
 
-        predictiveDangerMaxX = Mathf.Max(
-            heroStartX,
-            predictedBackDashX
-        ) + predictiveDangerPadding;
+        // The adaptive counter is a landing-zone sweep, not a wider normal
+        // projectile hitbox. It deliberately leaves the Hero's start point
+        // uncovered and attacks only the repeated DashBack destination.
+        float heroWidth = GetHeroCollider() != null
+            ? GetHeroCollider().bounds.size.x
+            : 0f;
+        float landingZoneHalfWidth =
+            heroWidth * 0.5f + predictiveDangerPadding;
+
+        predictiveDangerMinX =
+            predictedBackDashX - landingZoneHalfWidth;
+        predictiveDangerMaxX =
+            predictedBackDashX + landingZoneHalfWidth;
 
         predictiveDangerCenterX =
             (predictiveDangerMinX +
@@ -1133,6 +1185,18 @@ public sealed class DebuggerController : MonoBehaviour
             predictiveDangerMaxX - predictiveDangerMinX
         );
 
+        // Preserve the former broad purple forecast without broadening the
+        // OverlapBox damage zone above. This spans the observed retreat from
+        // the Hero's lock position through the predicted landing position.
+        predictiveTelegraphMinX = Mathf.Min(
+            heroStartX,
+            predictedBackDashX
+        ) - predictiveDangerPadding;
+        predictiveTelegraphMaxX = Mathf.Max(
+            heroStartX,
+            predictedBackDashX
+        ) + predictiveDangerPadding;
+
         Debug.Log(
             "DEBUGGER PREDICTIVE SWEEP: TARGET LOCK\n" +
             $"heroStartX={heroStartX:F2}\n" +
@@ -1141,7 +1205,36 @@ public sealed class DebuggerController : MonoBehaviour
             $"dangerMaxX={predictiveDangerMaxX:F2}"
         );
 
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        Debug.Log(
+            "[DBG_BACKDASH_ADAPT] " +
+            "phase=LOCK " +
+            $"heroStartX={heroStartX:F2} " +
+            $"dashDistance={dashDistance:F2} " +
+            $"predictedEndX={predictedBackDashX:F2} " +
+            $"attackTargetX={predictiveDangerCenterX:F2} " +
+            $"gameplayWidth={predictiveDangerWidth:F2} " +
+            $"telegraphWidth={predictiveTelegraphMaxX - predictiveTelegraphMinX:F2}"
+        );
+#endif
+
         return true;
+    }
+
+    private float GetPredictedDashDistance()
+    {
+        if (targetHero != null)
+        {
+            return targetHero.DashBackDistance;
+        }
+
+        HeroController hero = target != null
+            ? target.GetComponent<HeroController>()
+            : null;
+
+        return hero != null
+            ? hero.DashBackDistance
+            : predictedDashDistance;
     }
 
     private void PerformPredictiveRetreatSweep()
@@ -1212,6 +1305,18 @@ public sealed class DebuggerController : MonoBehaviour
 
         bool heroIsInvulnerable =
             hitHero != null && hitHero.IsInvulnerable;
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        Debug.Log(
+            "[DBG_BACKDASH_ADAPT] " +
+            "phase=IMPACT " +
+            $"heroStartX={predictiveHeroStartX:F2} " +
+            $"dashDistance={predictiveDashDistance:F2} " +
+            $"predictedEndX={predictiveExpectedEndX:F2} " +
+            $"attackTargetX={predictiveDangerCenterX:F2} " +
+            $"actualHeroX={GetTargetX():F2}"
+        );
+#endif
 
         Debug.Log(
             "DEBUGGER PREDICTIVE SWEEP: IMPACT\n" +
@@ -1326,6 +1431,15 @@ public sealed class DebuggerController : MonoBehaviour
 
             StopHorizontalMovement();
             poseController?.StopWalk();
+        }
+
+        if (advanceReason == AdvanceReason.RangedSpacing)
+        {
+            // This is diagnostic context only. Mark the following shot as
+            // spacing-prepared only if this shared approach actually reached
+            // its established firing distance.
+            rangedSpacingPrepared =
+                exitReason == "DISTANCE_REACHED";
         }
 
         LogAdvanceExit(exitReason);
@@ -1694,7 +1808,7 @@ public sealed class DebuggerController : MonoBehaviour
         predictiveSweepTelegraph.SetPosition(
             0,
             new Vector3(
-                predictiveDangerMinX,
+                predictiveTelegraphMinX,
                 predictiveDangerCenterY,
                 0f
             )
@@ -1703,7 +1817,7 @@ public sealed class DebuggerController : MonoBehaviour
         predictiveSweepTelegraph.SetPosition(
             1,
             new Vector3(
-                predictiveDangerMaxX,
+                predictiveTelegraphMaxX,
                 predictiveDangerCenterY,
                 0f
             )
@@ -2502,6 +2616,7 @@ public sealed class DebuggerController : MonoBehaviour
     private bool IsAdvanceAction()
     {
         return activeActionName == "ADVANCE" ||
+               activeActionName == "RANGED_SPACING_ADVANCE" ||
                activeActionName == "ARENA_RECOVERY";
     }
 
@@ -2555,15 +2670,18 @@ public sealed class DebuggerController : MonoBehaviour
     private string GetAdvanceReasonLabel(
         AdvanceReason advanceReason)
     {
-        return advanceReason ==
-               AdvanceReason.ArenaRecovery
-            ? "ARENA_RECOVERY"
-            : "POST_PROJECTILE";
+        return advanceReason switch
+        {
+            AdvanceReason.ArenaRecovery => "ARENA_RECOVERY",
+            AdvanceReason.RangedSpacing => "RANGED_SPACING",
+            _ => "POST_PROJECTILE"
+        };
     }
 
     private enum AdvanceReason
     {
         PostProjectile,
+        RangedSpacing,
         ArenaRecovery
     }
 }

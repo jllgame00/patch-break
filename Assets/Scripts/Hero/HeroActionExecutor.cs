@@ -122,9 +122,14 @@ public sealed class HeroActionExecutor : MonoBehaviour
                 ? -directionToTarget
                 : directionToTarget;
 
+        bool isDashBack = action == HeroActionType.DashBack;
         bool executed = force
-            ? controller.ForceDash(dashDirection)
-            : controller.TryDash(dashDirection);
+            ? (isDashBack
+                ? controller.ForceDashBack(dashDirection)
+                : controller.ForceDash(dashDirection))
+            : (isDashBack
+                ? controller.TryDashBack(dashDirection)
+                : controller.TryDash(dashDirection));
 
         if (executed && verboseDashLogging)
         {

@@ -10,14 +10,24 @@ public sealed class HeroController : MonoBehaviour
     [SerializeField] private float dashSpeed = 12f;
     [SerializeField] private float dashDuration = 0.15f;
     [SerializeField] private float dashCooldown = 0.75f;
+
+    [Header("Dash Back")]
+    // DashForward keeps the established speed. DashBack receives its own
+    // travel distance so it remains a meaningful spatial dodge in every
+    // encounter without changing forward-engage behavior.
+    [SerializeField, Min(0.1f)]
+    private float dashBackDistance = 2.3f;
+
     [SerializeField, Range(0f, 0.05f)]
     private float postDashInvulnerabilityGrace;
 
     private Rigidbody2D body;
+    private Collider2D heroCollider;
 
     private float moveInput;
     private float facingDirection = 1f;
     private float dashDirection;
+    private float activeDashSpeed;
     private float dashTimer;
     private float originalScaleX;
     private float nextDashTime;
@@ -30,8 +40,18 @@ public sealed class HeroController : MonoBehaviour
     private bool isDashing;
     private bool isRecoiling;
     private bool waitingForInvulnerabilityEnd;
+    private bool activeDashIsBack;
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+    private float dashBackStartX;
+    private float dashBackProjectileStartX;
+    private Bounds dashBackProjectileStartBounds;
+    private Collider2D dashBackProjectileCollider;
+    private bool pendingDashBackDiagnostics;
+#endif
 
     public float FacingDirection => facingDirection;
+    public float DashBackDistance => dashBackDistance;
     public bool IsDashing => isDashing;
     public bool IsInvulnerable =>
         isDashing || Time.time < invulnerableUntil;
@@ -47,6 +67,7 @@ public sealed class HeroController : MonoBehaviour
     private void Awake()
     {
         body = GetComponent<Rigidbody2D>();
+        heroCollider = GetComponent<Collider2D>();
         actionExecutor = GetComponent<HeroActionExecutor>();
         poseController = GetComponent<CharacterPoseController>();
         originalScaleX = Mathf.Abs(transform.localScale.x);
@@ -67,6 +88,17 @@ public sealed class HeroController : MonoBehaviour
 
     private void FixedUpdate()
     {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        // MovePosition applies during physics simulation. Defer this one-shot
+        // report until the following fixed callback so it observes the final
+        // fractional dash position and the resulting collider bounds.
+        if (pendingDashBackDiagnostics)
+        {
+            pendingDashBackDiagnostics = false;
+            LogDashBackDiagnostics();
+        }
+#endif
+
         if (isRecoiling)
         {
             UpdateGuardRecoil();
@@ -167,7 +199,12 @@ public sealed class HeroController : MonoBehaviour
 
     public bool TryDash(float direction)
     {
-        return StartDash(direction, ignoreCooldown: false);
+        return StartDash(
+            direction,
+            ignoreCooldown: false,
+            dashSpeed,
+            isDashBack: false
+        );
     }
 
     public bool ForceDash(float direction)
@@ -179,7 +216,39 @@ public sealed class HeroController : MonoBehaviour
 
         ClearGuardRecoilAndStagger();
 
-        return StartDash(direction, ignoreCooldown: true);
+        return StartDash(
+            direction,
+            ignoreCooldown: true,
+            dashSpeed,
+            isDashBack: false
+        );
+    }
+
+    public bool TryDashBack(float direction)
+    {
+        return StartDash(
+            direction,
+            ignoreCooldown: false,
+            GetDashBackSpeed(),
+            isDashBack: true
+        );
+    }
+
+    public bool ForceDashBack(float direction)
+    {
+        if (isDashing)
+        {
+            return false;
+        }
+
+        ClearGuardRecoilAndStagger();
+
+        return StartDash(
+            direction,
+            ignoreCooldown: true,
+            GetDashBackSpeed(),
+            isDashBack: true
+        );
     }
 
     public void ApplyGuardRecoil(
@@ -233,7 +302,11 @@ public sealed class HeroController : MonoBehaviour
         ClearGuardRecoilAndStagger();
     }
 
-    private bool StartDash(float direction, bool ignoreCooldown)
+    private bool StartDash(
+        float direction,
+        bool ignoreCooldown,
+        float requestedDashSpeed,
+        bool isDashBack)
     {
         if (isDashing || IsStaggered)
         {
@@ -251,6 +324,8 @@ public sealed class HeroController : MonoBehaviour
         }
 
         dashDirection = Mathf.Sign(direction);
+        activeDashSpeed = Mathf.Max(0.1f, requestedDashSpeed);
+        activeDashIsBack = isDashBack;
         dashTimer = dashDuration;
         nextDashTime = Time.time + dashCooldown;
         invulnerableUntil = 0f;
@@ -260,9 +335,16 @@ public sealed class HeroController : MonoBehaviour
         poseController?.StopWalk();
 
         body.linearVelocity = new Vector2(
-            dashDirection * dashSpeed,
+            dashDirection * activeDashSpeed,
             body.linearVelocity.y
         );
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        if (activeDashIsBack)
+        {
+            BeginDashBackDiagnostics();
+        }
+#endif
 
         LogDashStart();
 
@@ -271,10 +353,18 @@ public sealed class HeroController : MonoBehaviour
 
     private void UpdateDash()
     {
+        // A dash can end partway through a physics tick (for example,
+        // 0.15 seconds with a 0.02 second fixed step). Preserve the intended
+        // distance by applying that final fractional step explicitly instead
+        // of silently dropping it when velocity is cleared.
+        float finalStepDuration = Mathf.Min(
+            Time.fixedDeltaTime,
+            Mathf.Max(0f, dashTimer)
+        );
         dashTimer -= Time.fixedDeltaTime;
 
         body.linearVelocity = new Vector2(
-            dashDirection * dashSpeed,
+            dashDirection * activeDashSpeed,
             body.linearVelocity.y
         );
 
@@ -287,6 +377,17 @@ public sealed class HeroController : MonoBehaviour
             body.linearVelocity.y
         );
 
+        if (finalStepDuration > 0f)
+        {
+            body.MovePosition(
+                body.position +
+                Vector2.right *
+                dashDirection *
+                activeDashSpeed *
+                finalStepDuration
+            );
+        }
+
         invulnerableUntil =
             Time.time + postDashInvulnerabilityGrace;
 
@@ -295,12 +396,112 @@ public sealed class HeroController : MonoBehaviour
 
         LogDashMovementEnd();
 
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        if (activeDashIsBack)
+        {
+            pendingDashBackDiagnostics = true;
+        }
+#endif
+
         if (!waitingForInvulnerabilityEnd)
         {
             invulnerableUntil = 0f;
             LogInvulnerabilityEnd();
         }
+
+        activeDashSpeed = 0f;
+        activeDashIsBack = false;
     }
+
+    private float GetDashBackSpeed()
+    {
+        return dashBackDistance /
+            Mathf.Max(0.01f, dashDuration);
+    }
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+    private void BeginDashBackDiagnostics()
+    {
+        dashBackStartX = transform.position.x;
+        dashBackProjectileStartX = float.NaN;
+        dashBackProjectileStartBounds = default;
+        dashBackProjectileCollider = null;
+
+        KnightProjectile projectile =
+            Object.FindFirstObjectByType<KnightProjectile>();
+        if (projectile == null)
+        {
+            return;
+        }
+
+        dashBackProjectileCollider =
+            projectile.GetComponent<Collider2D>();
+        dashBackProjectileStartX = projectile.transform.position.x;
+
+        if (dashBackProjectileCollider != null)
+        {
+            dashBackProjectileStartBounds =
+                dashBackProjectileCollider.bounds;
+        }
+    }
+
+    private void LogDashBackDiagnostics()
+    {
+        Bounds heroBounds = heroCollider != null
+            ? heroCollider.bounds
+            : default;
+        bool projectileAlive = dashBackProjectileCollider != null;
+        Bounds projectileBounds = projectileAlive
+            ? dashBackProjectileCollider.bounds
+            : default;
+        float projectileEndX = projectileAlive
+            ? dashBackProjectileCollider.transform.position.x
+            : float.NaN;
+        float separation = projectileAlive && heroCollider != null
+            ? GetHorizontalSeparation(heroBounds, projectileBounds)
+            : float.NaN;
+
+        Debug.Log(
+            "[DBG_DASH_BACK] " +
+            $"startX={dashBackStartX:F2} " +
+            $"endX={transform.position.x:F2} " +
+            $"actualDistance={Mathf.Abs(transform.position.x - dashBackStartX):F2} " +
+            $"duration={dashDuration:F2} " +
+            $"projectileXAtStart={dashBackProjectileStartX:F2} " +
+            $"projectileXAtEnd={projectileEndX:F2} " +
+            $"projectileBoundsAtStart={FormatBounds(dashBackProjectileStartBounds)} " +
+            $"heroBoundsAfter={FormatBounds(heroBounds)} " +
+            $"projectileBoundsAfter={FormatBounds(projectileBounds)} " +
+            $"separation={separation:F2} " +
+            $"projectileAlive={projectileAlive}"
+        );
+    }
+
+    private static float GetHorizontalSeparation(
+        Bounds first,
+        Bounds second)
+    {
+        if (first.min.x > second.max.x)
+        {
+            return first.min.x - second.max.x;
+        }
+
+        if (second.min.x > first.max.x)
+        {
+            return second.min.x - first.max.x;
+        }
+
+        return -Mathf.Min(
+            first.max.x - second.min.x,
+            second.max.x - first.min.x
+        );
+    }
+
+    private static string FormatBounds(Bounds bounds)
+    {
+        return $"center={bounds.center:F2} size={bounds.size:F2}";
+    }
+#endif
 
     private void UpdateGuardRecoil()
     {
@@ -342,6 +543,11 @@ public sealed class HeroController : MonoBehaviour
     {
         isDashing = false;
         dashTimer = 0f;
+        activeDashSpeed = 0f;
+        activeDashIsBack = false;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        pendingDashBackDiagnostics = false;
+#endif
         invulnerableUntil = 0f;
         waitingForInvulnerabilityEnd = false;
     }
@@ -356,6 +562,7 @@ public sealed class HeroController : MonoBehaviour
             $"time={Time.time:F3}\n" +
             $"heroX={transform.position.x:F2}\n" +
             $"direction={dashDirection:F0}\n" +
+            $"speed={activeDashSpeed:F2}\n" +
             $"isDashing={isDashing}\n" +
             $"isInvulnerable={IsInvulnerable}"
         );

@@ -27,22 +27,28 @@ public sealed class KnightProjectile : MonoBehaviour
     );
 
     [Header("Debugger Hit Profile")]
-    // The shared root is scaled (0.5, 0.12). These local values produce a
-    // 2.6 x 2.16 world-space danger area: it covers the solid crescent body
-    // without turning the full 3.6 x 3.6 transparent sprite rectangle into
-    // a hitbox. Knight retains the prefab's original 1 x 1 profile.
-    [SerializeField] private Vector2 debuggerColliderSize = new Vector2(
-        5.2f,
-        18f
+    // Alpha >= 0.5 across all four Debugger frames gives a stable lower
+    // crescent core at source pixels X=13..53, Y=88..95. With the current
+    // 3.6-unit renderer, that core is about 1.5 units wide and sits 0.56
+    // units toward the shooter after the Debugger's visual X mirror. Keep
+    // gameplay on that visible lobe, not on the decorative leading tip.
+    [SerializeField, Min(0.01f)]
+    private Vector2 debuggerColliderWorldSize = new Vector2(
+        1.5f,
+        0.9f
     );
 
-    [SerializeField] private Vector2 debuggerColliderOffset = Vector2.zero;
-
-    // Hero DashBack travels 1.8 units. The small margin lets the Debugger
-    // crescent complete a real collision sweep after a post-lock DashBack,
-    // while remaining well below its existing 32-unit lifetime limit.
     [SerializeField, Min(0f)]
-    private float debuggerTravelPastTargetDistance = 2f;
+    private float debuggerColliderTrailingWorldOffset = 0.56f;
+
+    [SerializeField]
+    private float debuggerColliderWorldYOffset = 0.61f;
+
+    // A small post-lock continuation prevents the projectile from vanishing
+    // exactly at the locked point, while leaving room for a correctly timed
+    // Hero DashBack to clear the Debugger hitbox.
+    [SerializeField, Min(0f)]
+    private float debuggerTravelPastTargetDistance = 0.75f;
 
     [Header("Movement")]
     [SerializeField, Min(0.1f)]
@@ -92,6 +98,16 @@ public sealed class KnightProjectile : MonoBehaviour
     private Vector2 knightColliderOffset;
     private Bounds debuggerGeometryHeroBounds;
     private bool hasDebuggerGeometryHeroBounds;
+    private Vector2 debuggerColliderWorldOffset;
+    private int debuggerTravelSequence;
+    private string debuggerTravelProfile = "NONE";
+    private bool debuggerTravelAdaptationActive;
+    private bool debuggerTravelForcedRanged;
+    private bool debuggerTravelAfterSpacing;
+    private float debuggerTravelRangedStartX;
+    private float debuggerTravelRootX;
+    private float debuggerTravelHeroX;
+    private bool debuggerTravelEndLogged;
 
     public SpriteSequencePlayer VisualSequence => visualSequence;
     public Sprite[] KnightBeamFrames => knightBeamFrames;
@@ -209,6 +225,33 @@ public sealed class KnightProjectile : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Supplies one-shot, Debugger-only launch context for travel QA. It does
+    /// not participate in endpoint selection, collision, or movement.
+    /// </summary>
+    public void SetDebuggerTravelDiagnostics(
+        int sequence,
+        string profile,
+        bool adaptationActive,
+        bool forcedRanged,
+        bool afterRangedSpacing,
+        float rangedStartX,
+        float debuggerRootX,
+        float heroX)
+    {
+        debuggerTravelSequence = sequence;
+        debuggerTravelProfile = string.IsNullOrWhiteSpace(profile)
+            ? "NONE"
+            : profile;
+        debuggerTravelAdaptationActive = adaptationActive;
+        debuggerTravelForcedRanged = forcedRanged;
+        debuggerTravelAfterSpacing = afterRangedSpacing;
+        debuggerTravelRangedStartX = rangedStartX;
+        debuggerTravelRootX = debuggerRootX;
+        debuggerTravelHeroX = heroX;
+        debuggerTravelEndLogged = false;
+    }
+
     public void Launch(
         float direction,
         float targetX,
@@ -242,6 +285,13 @@ public sealed class KnightProjectile : MonoBehaviour
             projectileLogPrefix)
             ? "KNIGHT PROJECTILE"
             : projectileLogPrefix;
+
+        LogDebuggerTravelLaunch();
+
+        // SetVisualStyle is called before Launch, when direction is not yet
+        // known. Apply the Debugger profile again with the actual travel
+        // direction before either the initial-overlap or trigger path runs.
+        ApplyColliderProfile();
 
         body.linearVelocity =
             new Vector2(
@@ -280,6 +330,19 @@ public sealed class KnightProjectile : MonoBehaviour
                 $"colliderWorldSize={hitCollider.bounds.size:F2} " +
                 $"heroBoundsCenter={GetDebuggerGeometryHeroCenter():F2} " +
                 $"heroBoundsSize={GetDebuggerGeometryHeroSize():F2}"
+            );
+
+            Debug.Log(
+                "[DBG_PROJECTILE_VISUAL_CONTACT] " +
+                $"visualBounds=" +
+                (visualRenderer != null
+                    ? FormatBounds(visualRenderer.bounds)
+                    : "none") +
+                " " +
+                $"heroBounds={FormatBounds(debuggerGeometryHeroBounds)} " +
+                $"colliderBounds={FormatBounds(hitCollider)} " +
+                $"travelDirection={horizontalDirection:F0} " +
+                $"colliderWorldOffset={debuggerColliderWorldOffset:F2}"
             );
         }
 #endif
@@ -485,6 +548,8 @@ public sealed class KnightProjectile : MonoBehaviour
         resolved = true;
         hasLockedTarget = false;
 
+        LogDebuggerTravelEnd(reason);
+
         if (body != null)
         {
             body.linearVelocity = Vector2.zero;
@@ -529,6 +594,11 @@ public sealed class KnightProjectile : MonoBehaviour
 
     private void OnDisable()
     {
+        if (!resolved)
+        {
+            LogDebuggerTravelEnd("LIFETIME_OR_EXTERNAL");
+        }
+
         if (!resolved && verboseProjectileLogging)
         {
             Debug.Log(
@@ -549,6 +619,58 @@ public sealed class KnightProjectile : MonoBehaviour
         NotifyResolved();
     }
 
+    private void LogDebuggerTravelLaunch()
+    {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        if (!debuggerHitProfileActive)
+        {
+            return;
+        }
+
+        Debug.Log(
+            "[DBG_PROJECTILE_TRAVEL] " +
+            "phase=LAUNCH " +
+            $"sequence={debuggerTravelSequence} " +
+            $"profile={debuggerTravelProfile} " +
+            $"adaptation={debuggerTravelAdaptationActive} " +
+            $"forcedRanged={debuggerTravelForcedRanged} " +
+            $"afterRangedSpacing={debuggerTravelAfterSpacing} " +
+            $"rangedStartX={debuggerTravelRangedStartX:F2} " +
+            $"debuggerX={debuggerTravelRootX:F2} " +
+            $"spawnX={launchPosition.x:F2} " +
+            $"heroX={debuggerTravelHeroX:F2} " +
+            $"heroLockX={lockedTargetX:F2} " +
+            $"endX={travelEndX:F2} " +
+            $"direction={horizontalDirection:F0} " +
+            $"plannedTravel={Mathf.Abs(travelEndX - launchPosition.x):F2}"
+        );
+#endif
+    }
+
+    private void LogDebuggerTravelEnd(string reason)
+    {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        if (!debuggerHitProfileActive || debuggerTravelEndLogged)
+        {
+            return;
+        }
+
+        debuggerTravelEndLogged = true;
+        Debug.Log(
+            "[DBG_PROJECTILE_TRAVEL] " +
+            "phase=END " +
+            $"sequence={debuggerTravelSequence} " +
+            $"profile={debuggerTravelProfile} " +
+            $"spawnX={launchPosition.x:F2} " +
+            $"heroLockX={lockedTargetX:F2} " +
+            $"endX={travelEndX:F2} " +
+            $"actualEndX={transform.position.x:F2} " +
+            $"actualTravel={GetTravelDistance():F2} " +
+            $"reason={reason}"
+        );
+#endif
+    }
+
     private void ApplyColliderProfile()
     {
         if (hitCollider == null)
@@ -556,12 +678,40 @@ public sealed class KnightProjectile : MonoBehaviour
             return;
         }
 
-        hitCollider.size = debuggerHitProfileActive
-            ? debuggerColliderSize
-            : knightColliderSize;
-        hitCollider.offset = debuggerHitProfileActive
-            ? debuggerColliderOffset
-            : knightColliderOffset;
+        if (!debuggerHitProfileActive)
+        {
+            hitCollider.size = knightColliderSize;
+            hitCollider.offset = knightColliderOffset;
+            debuggerColliderWorldOffset = Vector2.zero;
+            return;
+        }
+
+        float direction = Mathf.Approximately(horizontalDirection, 0f)
+            ? 1f
+            : horizontalDirection;
+
+        // Positive trailing distance is always toward the shooter. This
+        // makes the contact profile symmetric for either firing direction.
+        debuggerColliderWorldOffset = new Vector2(
+            -direction * debuggerColliderTrailingWorldOffset,
+            debuggerColliderWorldYOffset
+        );
+
+        Vector3 lossyScale = transform.lossyScale;
+        hitCollider.size = new Vector2(
+            debuggerColliderWorldSize.x /
+                Mathf.Max(0.0001f, Mathf.Abs(lossyScale.x)),
+            debuggerColliderWorldSize.y /
+                Mathf.Max(0.0001f, Mathf.Abs(lossyScale.y))
+        );
+
+        Vector3 localOffset = transform.InverseTransformVector(
+            debuggerColliderWorldOffset
+        );
+        hitCollider.offset = new Vector2(
+            localOffset.x,
+            localOffset.y
+        );
     }
 
     private void CheckInitialOverlap()
@@ -602,6 +752,11 @@ public sealed class KnightProjectile : MonoBehaviour
         }
 
         Bounds bounds = collider.bounds;
+        return $"center={bounds.center:F2} size={bounds.size:F2}";
+    }
+
+    private static string FormatBounds(Bounds bounds)
+    {
         return $"center={bounds.center:F2} size={bounds.size:F2}";
     }
 

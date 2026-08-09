@@ -289,7 +289,7 @@ MonoBehaviour:
   debuggerVisualLocalScale: {x: -2.4, y: 10, z: 1}
   debuggerColliderSize: {x: 5.2, y: 18}
   debuggerColliderOffset: {x: 0, y: 0}
-  debuggerTravelPastTargetDistance: 2
+  debuggerTravelPastTargetDistance: 0.75
   speed: 8
   lifetime: 4
   damage: 20
