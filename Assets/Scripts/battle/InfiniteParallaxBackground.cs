@@ -42,12 +42,20 @@ public sealed class InfiniteParallaxBackground : MonoBehaviour
     [SerializeField, Range(0f, 1f)]
     private float combatRetreatMultiplier = 0.7f;
 
+    [Header("Generic Camera Coverage")]
+    [SerializeField]
+    private bool automaticCameraParallax;
+
     private bool heroScrolling;
     private bool travelScrolling;
     private bool combatRetreatScrolling;
     private bool combatCameraScrolling;
     private float previousHeroX;
     private Camera coverageCamera;
+    private Camera automaticCamera;
+    private float previousAutomaticCameraX;
+    private bool automaticCameraInitialized;
+    private bool automaticCameraMissingLogged;
     private bool coverageLostLogged;
 
     public bool IsHeroScrolling => heroScrolling;
@@ -58,10 +66,61 @@ public sealed class InfiniteParallaxBackground : MonoBehaviour
     public float MidMultiplier => mid.Multiplier;
     public float NearMultiplier => near.Multiplier;
     public float CombatRetreatMultiplier => combatRetreatMultiplier;
+    public bool AutomaticCameraParallax => automaticCameraParallax;
 
     private void Awake()
     {
         ResetTilePositions();
+    }
+
+    /// <summary>
+    /// Opt-in camera-following support for scenes that need stable coverage
+    /// but do not use DebuggerCombatCameraFollow. It only moves existing
+    /// background tiles; gameplay actors, camera policy, and colliders remain
+    /// entirely outside this component.
+    /// </summary>
+    private void LateUpdate()
+    {
+        if (!automaticCameraParallax)
+        {
+            return;
+        }
+
+        Camera camera = ResolveCoverageCamera();
+        if (camera == null)
+        {
+            if (!automaticCameraMissingLogged)
+            {
+                automaticCameraMissingLogged = true;
+                LogCoverageError(
+                    "Automatic camera parallax: no active Main Camera."
+                );
+            }
+
+            return;
+        }
+
+        automaticCameraMissingLogged = false;
+        if (!automaticCameraInitialized || automaticCamera != camera)
+        {
+            automaticCamera = camera;
+            previousAutomaticCameraX = camera.transform.position.x;
+            automaticCameraInitialized = true;
+            EnsureCameraViewportCoverage(camera);
+            return;
+        }
+
+        float cameraDeltaX =
+            camera.transform.position.x - previousAutomaticCameraX;
+        previousAutomaticCameraX = camera.transform.position.x;
+
+        if (Mathf.Abs(cameraDeltaX) <= Mathf.Epsilon)
+        {
+            EnsureCameraViewportCoverage(camera);
+            return;
+        }
+
+        ApplyCameraParallax(cameraDeltaX, camera);
     }
 
     public void ConfigureForScene(
@@ -82,6 +141,18 @@ public sealed class InfiniteParallaxBackground : MonoBehaviour
         mid.Configure(midContainer, midA, midB, 0.55f);
         near.Configure(nearContainer, nearA, nearB, 0.95f);
         ResetTilePositions();
+    }
+
+    /// <summary>
+    /// Used by scene setup tools. DebuggerBattle keeps this disabled because
+    /// DebuggerCombatCameraFollow supplies its deliberate camera deltas.
+    /// </summary>
+    public void ConfigureAutomaticCameraParallax(bool enabled)
+    {
+        automaticCameraParallax = enabled;
+        automaticCamera = null;
+        automaticCameraInitialized = false;
+        automaticCameraMissingLogged = false;
     }
 
     public void BeginHeroScroll()
@@ -205,14 +276,7 @@ public sealed class InfiniteParallaxBackground : MonoBehaviour
             return;
         }
 
-        CompensateLayerForCamera(far, signedCameraDeltaX);
-        CompensateLayerForCamera(mid, signedCameraDeltaX);
-        CompensateLayerForCamera(near, signedCameraDeltaX);
-
-        RecycleLayerForCamera(far, camera);
-        RecycleLayerForCamera(mid, camera);
-        RecycleLayerForCamera(near, camera);
-        EnsureCameraViewportCoverage(camera);
+        ApplyCameraParallax(signedCameraDeltaX, camera);
     }
 
     public void EndCombatCameraScroll()
@@ -378,6 +442,8 @@ public sealed class InfiniteParallaxBackground : MonoBehaviour
         travelScrolling = false;
         combatRetreatScrolling = false;
         combatCameraScrolling = false;
+        automaticCamera = null;
+        automaticCameraInitialized = false;
         ResetLayer(far);
         ResetLayer(mid);
         ResetLayer(near);
@@ -428,6 +494,21 @@ public sealed class InfiniteParallaxBackground : MonoBehaviour
         ScrollLayer(mid, offsetX * mid.Multiplier);
         ScrollLayer(near, offsetX * near.Multiplier);
         EnsureCameraViewportCoverage();
+    }
+
+    private void ApplyCameraParallax(
+        float signedCameraDeltaX,
+        Camera camera
+    )
+    {
+        CompensateLayerForCamera(far, signedCameraDeltaX);
+        CompensateLayerForCamera(mid, signedCameraDeltaX);
+        CompensateLayerForCamera(near, signedCameraDeltaX);
+
+        RecycleLayerForCamera(far, camera);
+        RecycleLayerForCamera(mid, camera);
+        RecycleLayerForCamera(near, camera);
+        EnsureCameraViewportCoverage(camera);
     }
 
     private static void CompensateLayerForCamera(

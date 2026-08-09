@@ -3681,6 +3681,7 @@ MonoBehaviour:
   dashSpeed: 12
   dashDuration: 0.15
   dashCooldown: 0.75
+  dashBackDistance: 2.3
   postDashInvulnerabilityGrace: 0
 --- !u!114 &1076982205
 MonoBehaviour:
@@ -6803,6 +6804,7 @@ MonoBehaviour:
     tileB: {fileID: 1986046485}
     multiplier: 0.95
   combatRetreatMultiplier: 0.7
+  automaticCameraParallax: 1
 --- !u!1 &1800994171
 GameObject:
   m_ObjectHideFlags: 0
@@ -7758,6 +7760,8 @@ MonoBehaviour:
   attackHistoryCapacity: 5
   guardHistoryCapacity: 4
   backDashDetectionCount: 3
+  slashDetectionCount: 3
+  forwardDashDetectionCount: 3
   verbosePatternLogging: 1
 --- !u!4 &1914110098
 Transform:
