@@ -53,6 +53,18 @@ public sealed class CharacterPoseController : MonoBehaviour
     public bool IsDeadVisual => isDead;
 
     /// <summary>
+    /// True only while the visual coordinator is actually presenting its Walk
+    /// loop. This intentionally does not infer locomotion from a Rigidbody so
+    /// visual-only travel (such as the stationary Hero during EnemyEntering)
+    /// remains observable to presentation-only listeners.
+    /// </summary>
+    public bool IsWalking =>
+        isActiveAndEnabled &&
+        !isDead &&
+        visualState == VisualState.Walk &&
+        (sequencePlayer == null || sequencePlayer.IsPlaying);
+
+    /// <summary>
     /// Explicit scene/retry initialization only. Normal pose calls may not
     /// clear a terminal death visual state.
     /// </summary>

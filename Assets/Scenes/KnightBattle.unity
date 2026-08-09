@@ -3509,6 +3509,7 @@ GameObject:
   - component: {fileID: 1076982213}
   - component: {fileID: 1076982214}
   - component: {fileID: 1076982215}
+  - component: {fileID: 1076982216}
   m_Layer: 8
   m_Name: Hero
   m_TagString: Untagged
@@ -3904,6 +3905,27 @@ MonoBehaviour:
   - {fileID: -7181453379029249054, guid: d3491e70046136943b7b088d92d95c15, type: 3}
   - {fileID: -8090956282728456220, guid: d3491e70046136943b7b088d92d95c15, type: 3}
   framesPerSecond: 10
+--- !u!114 &1076982216
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1076982199}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ad1e5f52e9bff0141aef172413a106fb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CharacterFootstepAudio
+  poseController: {fileID: 1076982213}
+  footstepClip: {fileID: 8300000, guid: 11b1630249577ce489ae1078f7c5c8fc, type: 3}
+  stepIntervalMultiplier: 1
+  minimumInterval: 0.01
+  clipLengthMinimumIntervalMultiplier: 0.5
+  initialDelay: 0.05
+  volume: 0.45
+  minimumPitch: 0.97
+  maximumPitch: 1.03
 --- !u!1 &1078670603
 GameObject:
   m_ObjectHideFlags: 0
@@ -5324,6 +5346,7 @@ GameObject:
   - component: {fileID: 1388358293}
   - component: {fileID: 1388358294}
   - component: {fileID: 1388358295}
+  - component: {fileID: 1388358296}
   m_Layer: 7
   m_Name: Knight
   m_TagString: Untagged
@@ -5656,6 +5679,27 @@ MonoBehaviour:
   - {fileID: 3807418532339067830, guid: c427b2c2cb664b543a45b571a263ffbf, type: 3}
   - {fileID: -4729912045155272775, guid: c427b2c2cb664b543a45b571a263ffbf, type: 3}
   framesPerSecond: 10
+--- !u!114 &1388358296
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1388358283}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ad1e5f52e9bff0141aef172413a106fb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CharacterFootstepAudio
+  poseController: {fileID: 1388358293}
+  footstepClip: {fileID: 8300000, guid: f344cb25afb327447a8c04e73b6c0efc, type: 3}
+  stepIntervalMultiplier: 1
+  minimumInterval: 0.01
+  clipLengthMinimumIntervalMultiplier: 0.5
+  initialDelay: 0.12
+  volume: 0.35
+  minimumPitch: 0.97
+  maximumPitch: 1.03
 --- !u!1 &1430934172
 GameObject:
   m_ObjectHideFlags: 0

@@ -303,6 +303,7 @@ MonoBehaviour:
   mainMenuSceneName: MainMenu
   title: PATCH COMPLETE
   subtitle: SYSTEM STABILIZED
+  credits: "CODE / DEVELOPMENT\n\uC815\uC6B0\uBE48\n\nASSET DESIGN\n\uAE40\uC724\uC9C0"
 --- !u!1 &949404985
 GameObject:
   m_ObjectHideFlags: 0
@@ -734,6 +735,7 @@ MonoBehaviour:
   swordSwingClip: {fileID: 8300000, guid: e02e470d06763dd41a7d4dc13746aac2, type: 3}
   projectileClip: {fileID: 8300000, guid: ec6bfa68ada02ed4c83ac2ca334216b6, type: 3}
   hitClip: {fileID: 8300000, guid: 53d6614e4f8ef0d4298f54534ea0b03e, type: 3}
+  hitVolumeMultiplier: 0.1
   bgmVolume: 0.6
   ambienceVolume: 0.13
   sfxVolume: 0.8

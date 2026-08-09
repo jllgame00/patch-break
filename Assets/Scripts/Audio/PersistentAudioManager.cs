@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -53,6 +54,8 @@ public sealed class PersistentAudioManager : MonoBehaviour
     private Coroutine bgmTransition;
     private Coroutine ambienceTransition;
     private float nextTypingTime;
+    private readonly Dictionary<CharacterFootstepAudio, AudioSource>
+        footstepSources = new();
 
     public static PersistentAudioManager Instance => instance;
     public AudioSource BgmSource => bgmSource;
@@ -191,6 +194,36 @@ public sealed class PersistentAudioManager : MonoBehaviour
         );
     }
 
+    /// <summary>
+    /// Plays a presentation-only footstep through the existing SFX mix. Each
+    /// walker receives a small manager-owned source so its one-shots can be
+    /// stopped without interrupting combat/UI SFX or another walking actor.
+    /// </summary>
+    public static void PlayFootstep(
+        CharacterFootstepAudio owner,
+        AudioClip clip,
+        float relativeVolume,
+        float minimumPitch,
+        float maximumPitch)
+    {
+        instance?.PlayFootstepInternal(
+            owner,
+            clip,
+            relativeVolume,
+            minimumPitch,
+            maximumPitch
+        );
+    }
+
+    /// <summary>
+    /// Stops only the specified walker's active footstep voice. Gameplay and
+    /// existing shared one-shot SFX are deliberately left untouched.
+    /// </summary>
+    public static void StopFootsteps(CharacterFootstepAudio owner)
+    {
+        instance?.ReleaseFootstepSource(owner);
+    }
+
     private void HandleActiveSceneChanged(Scene previous, Scene next)
     {
         ApplySceneAudioPolicy(next);
@@ -254,6 +287,70 @@ public sealed class PersistentAudioManager : MonoBehaviour
         ConfigureLoopSource(bgmSource);
         ConfigureLoopSource(ambienceSource);
         ConfigureSfxSource(sfxSource);
+    }
+
+    private void PlayFootstepInternal(
+        CharacterFootstepAudio owner,
+        AudioClip clip,
+        float relativeVolume,
+        float minimumPitch,
+        float maximumPitch)
+    {
+        if (owner == null || clip == null)
+        {
+            return;
+        }
+
+        AudioSource source = GetOrCreateFootstepSource(owner);
+        if (source == null)
+        {
+            return;
+        }
+
+        source.pitch = UnityEngine.Random.Range(
+            minimumPitch,
+            maximumPitch
+        );
+        source.PlayOneShot(clip, sfxVolume * relativeVolume);
+        source.pitch = 1f;
+    }
+
+    private AudioSource GetOrCreateFootstepSource(
+        CharacterFootstepAudio owner)
+    {
+        if (footstepSources.TryGetValue(owner, out AudioSource source) &&
+            source != null)
+        {
+            return source;
+        }
+
+        GameObject sourceObject = new(
+            "FootstepSfxSource_" + owner.GetInstanceID()
+        );
+        sourceObject.transform.SetParent(transform, false);
+        source = sourceObject.AddComponent<AudioSource>();
+        ConfigureSfxSource(source);
+        source.volume = 1f;
+        footstepSources[owner] = source;
+        return source;
+    }
+
+    private void ReleaseFootstepSource(CharacterFootstepAudio owner)
+    {
+        if (owner == null ||
+            !footstepSources.TryGetValue(owner, out AudioSource source))
+        {
+            return;
+        }
+
+        footstepSources.Remove(owner);
+        if (source == null)
+        {
+            return;
+        }
+
+        source.Stop();
+        Destroy(source.gameObject);
     }
 
     private static void ConfigureLoopSource(AudioSource source)

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using TMPro;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -18,6 +19,7 @@ public static class PatchBreakAudioSetup
     private const string BgmSourceName = "BgmSource";
     private const string AmbienceSourceName = "AmbienceSource";
     private const string SfxSourceName = "SfxSource";
+    private const string FootstepDirectory = "Assets/Audio/SFX/Footstep";
     private const float Epsilon = 0.001f;
 
     private static readonly ClipSpec BattleBgm = new(
@@ -86,7 +88,7 @@ public static class PatchBreakAudioSetup
         ClipUsage.ShortSfx
     );
 
-    private static readonly ClipSpec[] AllClips =
+    private static readonly ClipSpec[] CoreClips =
     {
         BattleBgm,
         DebuggerBgm,
@@ -99,6 +101,44 @@ public static class PatchBreakAudioSetup
         SwordSwing,
         Projectile,
         Hit
+    };
+
+    // Character mapping is resolved from the inventory at setup time. A file
+    // must begin with the exact character name followed by '_' or '-' (for
+    // example, Debugger_sound) to be assigned. This deliberately leaves
+    // GIANT_sound and any similarly non-character-named file unassigned.
+    private static readonly FootstepProfile HeroFootstep = new(
+        "Hero",
+        0.45f,
+        0.05f
+    );
+
+    private static readonly FootstepProfile GolemFootstep = new(
+        "Golem",
+        0.45f,
+        0.08f
+    );
+
+    private static readonly FootstepProfile KnightFootstep = new(
+        "Knight",
+        0.35f,
+        0.12f
+    );
+
+    private static readonly FootstepProfile DebuggerFootstep = new(
+        "Debugger",
+        0.40f,
+        0.10f
+    );
+
+    private static readonly FootstepBinding[] FootstepBindings =
+    {
+        new("Battle", "Hero", HeroFootstep),
+        new("Battle", "Golem", GolemFootstep),
+        new("KnightBattle", "Hero", HeroFootstep),
+        new("KnightBattle", "Knight", KnightFootstep),
+        new("DebuggerBattle", "Hero", HeroFootstep),
+        new("DebuggerBattle", "Debugger", DebuggerFootstep)
     };
 
     private static readonly SceneSpec[] SceneSpecs =
@@ -115,38 +155,24 @@ public static class PatchBreakAudioSetup
     {
         AssetDatabase.Refresh();
 
-        foreach (ClipSpec spec in AllClips)
+        foreach (ClipSpec spec in GetAllClipSpecs())
         {
-            AudioClip clip = AssetDatabase.LoadAssetAtPath<AudioClip>(
-                spec.Path
-            );
-            AudioImporter importer = AssetImporter.GetAtPath(spec.Path)
-                as AudioImporter;
-
-            if (clip == null || importer == null)
-            {
-                Debug.LogError(
-                    "PATCH//BREAK audio asset missing: " + spec.Path
-                );
-                continue;
-            }
-
-            AudioImporterSampleSettings settings =
-                importer.defaultSampleSettings;
-            Debug.Log(
-                "PATCH//BREAK AUDIO ASSET\n" +
-                "name=" + spec.Name + "\n" +
-                "path=" + spec.Path + "\n" +
-                "duration=" + clip.length.ToString("F3") + "s\n" +
-                "channels=" + clip.channels + "\n" +
-                "sampleRate=" + clip.frequency + "Hz\n" +
-                "usage=" + spec.Usage + "\n" +
-                "loopSuitable=" +
-                (spec.Usage == ClipUsage.Music ? "YES" : "NO") + "\n" +
-                "loadType=" + settings.loadType + "\n" +
-                "compression=" + settings.compressionFormat
-            );
+            LogClipInventory(spec);
         }
+
+        LogFootstepMappings();
+    }
+
+    [MenuItem(MenuRoot + "Analyze Footstep Assets")]
+    public static void AnalyzeFootstepAssets()
+    {
+        AssetDatabase.Refresh();
+        foreach (ClipSpec spec in GetFootstepClipSpecs())
+        {
+            LogClipInventory(spec);
+        }
+
+        LogFootstepMappings();
     }
 
     [MenuItem(MenuRoot + "Setup Import Settings")]
@@ -216,7 +242,7 @@ public static class PatchBreakAudioSetup
     private static void ConfigureAllImportsOrThrow()
     {
         AssetDatabase.Refresh();
-        foreach (ClipSpec spec in AllClips)
+        foreach (ClipSpec spec in GetAllClipSpecs())
         {
             ConfigureImportOrThrow(spec);
         }
@@ -468,13 +494,262 @@ public static class PatchBreakAudioSetup
             );
         briefingAudio.Configure(briefing);
 
+        ConfigureFootstepHooks(scene, spec);
+
         EditorUtility.SetDirty(typing);
         EditorUtility.SetDirty(briefingAudio);
     }
 
+    private static void ConfigureFootstepHooks(Scene scene, SceneSpec spec)
+    {
+        foreach (FootstepBinding binding in FootstepBindings)
+        {
+            if (binding.SceneName != spec.Name)
+            {
+                continue;
+            }
+
+            GameObject actor = FindRootByName(scene, binding.RootName);
+            if (actor == null)
+            {
+                throw new InvalidOperationException(
+                    spec.Name + "/" + binding.RootName +
+                    ": character root is missing for footstep setup."
+                );
+            }
+
+            CharacterPoseController pose = actor.GetComponent<
+                CharacterPoseController>();
+            if (pose == null)
+            {
+                throw new InvalidOperationException(
+                    spec.Name + "/" + binding.RootName +
+                    ": CharacterPoseController is missing for footstep setup."
+                );
+            }
+
+            AudioClip clip = ResolveMappedFootstepClipOrNull(
+                binding.Profile.CharacterName
+            );
+            if (clip == null)
+            {
+                Debug.LogWarning(
+                    "PATCH//BREAK footstep unassigned: " +
+                    binding.Profile.CharacterName +
+                    " has no exact character-named AudioClip in " +
+                    FootstepDirectory + ". No substitute clip was used."
+                );
+            }
+
+            CharacterFootstepAudio footstep =
+                GetOrAddSingleComponent<CharacterFootstepAudio>(
+                    actor,
+                    spec.Name + "/" + binding.RootName
+                );
+            footstep.Configure(
+                pose,
+                clip,
+                binding.Profile.StepIntervalMultiplier,
+                binding.Profile.MinimumInterval,
+                binding.Profile.ClipLengthMinimumIntervalMultiplier,
+                binding.Profile.InitialDelay,
+                binding.Profile.Volume,
+                binding.Profile.MinimumPitch,
+                binding.Profile.MaximumPitch
+            );
+            EditorUtility.SetDirty(footstep);
+        }
+    }
+
+    private static List<ClipSpec> GetAllClipSpecs()
+    {
+        List<ClipSpec> clips = new(CoreClips);
+        clips.AddRange(GetFootstepClipSpecs());
+        return clips;
+    }
+
+    private static List<ClipSpec> GetFootstepClipSpecs()
+    {
+        List<ClipSpec> clips = new();
+        string[] guids = AssetDatabase.FindAssets(
+            "t:AudioClip",
+            new[] { FootstepDirectory }
+        );
+
+        foreach (string guid in guids)
+        {
+            string path = AssetDatabase.GUIDToAssetPath(guid);
+            if (string.IsNullOrEmpty(path))
+            {
+                continue;
+            }
+
+            clips.Add(new ClipSpec(
+                "Footstep " + Path.GetFileName(path),
+                path,
+                ClipUsage.ShortSfx
+            ));
+        }
+
+        clips.Sort((left, right) => string.CompareOrdinal(
+            left.Path,
+            right.Path
+        ));
+        return clips;
+    }
+
+    private static AudioClip ResolveMappedFootstepClipOrNull(
+        string characterName)
+    {
+        List<ClipSpec> matches = FindMappedFootstepClipSpecs(characterName);
+        if (matches.Count == 0)
+        {
+            return null;
+        }
+
+        if (matches.Count > 1)
+        {
+            throw new InvalidOperationException(
+                characterName + ": multiple exact character-named footstep " +
+                "clips were found: " + string.Join(
+                    ", ",
+                    matches.ConvertAll(match => match.Path)
+                )
+            );
+        }
+
+        return LoadClipOrThrow(matches[0]);
+    }
+
+    private static List<ClipSpec> FindMappedFootstepClipSpecs(
+        string characterName)
+    {
+        List<ClipSpec> matches = new();
+        foreach (ClipSpec clip in GetFootstepClipSpecs())
+        {
+            string filename = Path.GetFileNameWithoutExtension(clip.Path);
+            if (MatchesCharacterFilename(filename, characterName))
+            {
+                matches.Add(clip);
+            }
+        }
+
+        return matches;
+    }
+
+    private static bool MatchesCharacterFilename(
+        string filename,
+        string characterName)
+    {
+        return filename.Equals(
+                   characterName,
+                   StringComparison.OrdinalIgnoreCase
+               ) ||
+               filename.StartsWith(
+                   characterName + "_",
+                   StringComparison.OrdinalIgnoreCase
+               ) ||
+               filename.StartsWith(
+                   characterName + "-",
+                   StringComparison.OrdinalIgnoreCase
+               );
+    }
+
+    private static void LogClipInventory(ClipSpec spec)
+    {
+        AudioClip clip = AssetDatabase.LoadAssetAtPath<AudioClip>(spec.Path);
+        AudioImporter importer = AssetImporter.GetAtPath(spec.Path)
+            as AudioImporter;
+        if (clip == null || importer == null)
+        {
+            Debug.LogError("PATCH//BREAK audio asset missing: " + spec.Path);
+            return;
+        }
+
+        AudioImporterSampleSettings settings = importer.defaultSampleSettings;
+        string mapping = spec.Path.StartsWith(
+            FootstepDirectory + "/",
+            StringComparison.Ordinal
+        )
+            ? GetFootstepMappingLabel(spec.Path)
+            : "N/A";
+        Debug.Log(
+            "PATCH//BREAK AUDIO ASSET\n" +
+            "name=" + spec.Name + "\n" +
+            "filename=" + Path.GetFileName(spec.Path) + "\n" +
+            "extension=" + Path.GetExtension(spec.Path) + "\n" +
+            "path=" + spec.Path + "\n" +
+            "mapping=" + mapping + "\n" +
+            "duration=" + clip.length.ToString("F3") + "s\n" +
+            "channels=" + clip.channels + "\n" +
+            "sampleRate=" + clip.frequency + "Hz\n" +
+            "usage=" + spec.Usage + "\n" +
+            "loadType=" + settings.loadType + "\n" +
+            "compression=" + settings.compressionFormat + "\n" +
+            "quality=" + settings.quality.ToString("F2") + "\n" +
+            "sampleRateSetting=" + settings.sampleRateSetting + "\n" +
+            "sampleRateOverride=" + settings.sampleRateOverride + "\n" +
+            "preloadAudioData=" + settings.preloadAudioData + "\n" +
+            "forceToMono=" + importer.forceToMono + "\n" +
+            "loadInBackground=" + importer.loadInBackground
+        );
+    }
+
+    private static string GetFootstepMappingLabel(string path)
+    {
+        string filename = Path.GetFileNameWithoutExtension(path);
+        List<string> mappings = new();
+        foreach (FootstepProfile profile in GetFootstepProfiles())
+        {
+            if (MatchesCharacterFilename(filename, profile.CharacterName))
+            {
+                mappings.Add(profile.CharacterName);
+            }
+        }
+
+        return mappings.Count == 0
+            ? "UNMAPPED"
+            : string.Join(", ", mappings);
+    }
+
+    private static IEnumerable<FootstepProfile> GetFootstepProfiles()
+    {
+        yield return HeroFootstep;
+        yield return GolemFootstep;
+        yield return KnightFootstep;
+        yield return DebuggerFootstep;
+    }
+
+    private static void LogFootstepMappings()
+    {
+        foreach (FootstepProfile profile in GetFootstepProfiles())
+        {
+            List<ClipSpec> matches = FindMappedFootstepClipSpecs(
+                profile.CharacterName
+            );
+            if (matches.Count == 0)
+            {
+                Debug.LogWarning(
+                    "PATCH//BREAK FOOTSTEP MAPPING\ncharacter=" +
+                    profile.CharacterName + "\nclip=UNASSIGNED\nreason=" +
+                    "No exact character-named AudioClip was found."
+                );
+                continue;
+            }
+
+            Debug.Log(
+                "PATCH//BREAK FOOTSTEP MAPPING\ncharacter=" +
+                profile.CharacterName + "\nclip=" + string.Join(
+                    ", ",
+                    matches.ConvertAll(match => match.Path)
+                )
+            );
+        }
+    }
+
     private static void ValidateAllImportsOrThrow()
     {
-        foreach (ClipSpec spec in AllClips)
+        foreach (ClipSpec spec in GetAllClipSpecs())
         {
             ValidateImportOrThrow(spec);
         }
@@ -562,6 +837,7 @@ public static class PatchBreakAudioSetup
         if (spec.IsBattleScene)
         {
             ValidateBattleHooks(scene, errors);
+            ValidateFootstepHooks(scene, spec, errors);
         }
 
         ValidateNoMissingComponents(scene, spec.Name, errors);
@@ -649,6 +925,79 @@ public static class PatchBreakAudioSetup
         {
             errors.Add(exception.Message);
         }
+    }
+
+    private static void ValidateFootstepHooks(
+        Scene scene,
+        SceneSpec spec,
+        List<string> errors)
+    {
+        foreach (FootstepBinding binding in FootstepBindings)
+        {
+            if (binding.SceneName != spec.Name)
+            {
+                continue;
+            }
+
+            try
+            {
+                GameObject actor = FindRootByName(scene, binding.RootName);
+                CharacterPoseController pose = actor != null
+                    ? actor.GetComponent<CharacterPoseController>()
+                    : null;
+                CharacterFootstepAudio[] hooks = actor != null
+                    ? actor.GetComponents<CharacterFootstepAudio>()
+                    : Array.Empty<CharacterFootstepAudio>();
+                AudioClip expectedClip = ResolveMappedFootstepClipOrNull(
+                    binding.Profile.CharacterName
+                );
+
+                if (actor == null || pose == null || hooks.Length != 1 ||
+                    !IsConfiguredFootstepHook(
+                        hooks.Length == 1 ? hooks[0] : null,
+                        pose,
+                        expectedClip,
+                        binding.Profile
+                    ))
+                {
+                    errors.Add(
+                        binding.RootName +
+                        ": footstep presentation configuration is invalid."
+                    );
+                }
+            }
+            catch (InvalidOperationException exception)
+            {
+                errors.Add(exception.Message);
+            }
+        }
+    }
+
+    private static bool IsConfiguredFootstepHook(
+        CharacterFootstepAudio hook,
+        CharacterPoseController pose,
+        AudioClip expectedClip,
+        FootstepProfile profile)
+    {
+        return hook != null &&
+               hook.PoseController == pose &&
+               hook.FootstepClip == expectedClip &&
+               Mathf.Approximately(
+                   hook.StepIntervalMultiplier,
+                   profile.StepIntervalMultiplier
+               ) &&
+               Mathf.Approximately(
+                   hook.MinimumInterval,
+                   profile.MinimumInterval
+               ) &&
+               Mathf.Approximately(
+                   hook.ClipLengthMinimumIntervalMultiplier,
+                   profile.ClipLengthMinimumIntervalMultiplier
+               ) &&
+               Mathf.Approximately(hook.InitialDelay, profile.InitialDelay) &&
+               Mathf.Approximately(hook.Volume, profile.Volume) &&
+               Mathf.Approximately(hook.MinimumPitch, profile.MinimumPitch) &&
+               Mathf.Approximately(hook.MaximumPitch, profile.MaximumPitch);
     }
 
     private static bool IsConfiguredSource(AudioSource source, bool loop)
@@ -901,6 +1250,57 @@ public static class PatchBreakAudioSetup
         throw new InvalidOperationException(
             title + ":\n- " + string.Join("\n- ", errors)
         );
+    }
+
+    private sealed class FootstepProfile
+    {
+        public const float StepIntervalMultiplierDefault = 1f;
+        public const float MinimumIntervalDefault = 0.01f;
+        public const float ClipLengthMinimumIntervalMultiplierDefault = 0.5f;
+        public const float MinimumPitchDefault = 0.97f;
+        public const float MaximumPitchDefault = 1.03f;
+
+        public readonly string CharacterName;
+        public readonly float Volume;
+        public readonly float InitialDelay;
+        public readonly float StepIntervalMultiplier;
+        public readonly float MinimumInterval;
+        public readonly float ClipLengthMinimumIntervalMultiplier;
+        public readonly float MinimumPitch;
+        public readonly float MaximumPitch;
+
+        public FootstepProfile(
+            string characterName,
+            float volume,
+            float initialDelay)
+        {
+            CharacterName = characterName;
+            Volume = volume;
+            InitialDelay = initialDelay;
+            StepIntervalMultiplier = StepIntervalMultiplierDefault;
+            MinimumInterval = MinimumIntervalDefault;
+            ClipLengthMinimumIntervalMultiplier =
+                ClipLengthMinimumIntervalMultiplierDefault;
+            MinimumPitch = MinimumPitchDefault;
+            MaximumPitch = MaximumPitchDefault;
+        }
+    }
+
+    private sealed class FootstepBinding
+    {
+        public readonly string SceneName;
+        public readonly string RootName;
+        public readonly FootstepProfile Profile;
+
+        public FootstepBinding(
+            string sceneName,
+            string rootName,
+            FootstepProfile profile)
+        {
+            SceneName = sceneName;
+            RootName = rootName;
+            Profile = profile;
+        }
     }
 
     private enum ClipUsage
