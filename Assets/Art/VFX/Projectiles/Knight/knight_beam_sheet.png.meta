@@ -165,17 +165,17 @@ TextureImporter:
         serializedVersion: 2
         x: 0
         y: 0
-        width: 56
-        height: 24
+        width: 64
+        height: 64
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
       customData: 
       outline: []
       physicsShape: []
-      tessellationDetail: -1
+      tessellationDetail: 0
       bones: []
-      spriteID: 7fe0c271dae4e50b0800000000000000
+      spriteID: 3489746e6ef62de41bef24e4a14031c7
       internalID: -5738062369898361097
       vertices: []
       indices: 
@@ -185,19 +185,19 @@ TextureImporter:
       name: Knight_Beam_01
       rect:
         serializedVersion: 2
-        x: 56
+        x: 64
         y: 0
-        width: 56
-        height: 24
+        width: 64
+        height: 64
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
       customData: 
       outline: []
       physicsShape: []
-      tessellationDetail: -1
+      tessellationDetail: 0
       bones: []
-      spriteID: ce675d790e5fbf720800000000000000
+      spriteID: ac8a23002c3380f4cbc6c51a19d02aad
       internalID: 2881166731602392812
       vertices: []
       indices: 
@@ -207,19 +207,19 @@ TextureImporter:
       name: Knight_Beam_02
       rect:
         serializedVersion: 2
-        x: 112
+        x: 128
         y: 0
-        width: 56
-        height: 24
+        width: 64
+        height: 64
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
       customData: 
       outline: []
       physicsShape: []
-      tessellationDetail: -1
+      tessellationDetail: 0
       bones: []
-      spriteID: ed3f922a20868c110800000000000000
+      spriteID: 822f9295049886c4893c661facf782ad
       internalID: 1281388454506787806
       vertices: []
       indices: 
@@ -229,19 +229,19 @@ TextureImporter:
       name: Knight_Beam_03
       rect:
         serializedVersion: 2
-        x: 168
+        x: 192
         y: 0
-        width: 56
-        height: 24
+        width: 64
+        height: 64
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
       customData: 
       outline: []
       physicsShape: []
-      tessellationDetail: -1
+      tessellationDetail: 0
       bones: []
-      spriteID: 30356e6cfbcd43140800000000000000
+      spriteID: b9a702114af87894893a111ecd25dd2e
       internalID: 4698623027488117507
       vertices: []
       indices: 
@@ -251,7 +251,7 @@ TextureImporter:
     customData: 
     physicsShape: []
     bones: []
-    spriteID: 
+    spriteID: dca7759350dd4304f94addbd5bb9ad6c
     internalID: 0
     vertices: []
     indices: 
@@ -271,6 +271,8 @@ TextureImporter:
       knight_beam_sheet_3: 2796724176127151336
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
-  userData: 
+  userData: 'PATCH_BREAK_KNIGHT_CRESCENT_FULL_RECT_V1
+
+    PATCH_BREAK_KNIGHT_CRESCENT_FULL_RECT_V2'
   assetBundleName: 
   assetBundleVariant: 

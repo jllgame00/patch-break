@@ -484,6 +484,7 @@ public sealed class KnightController : MonoBehaviour
             );
 
         projectile.SetVisualStyle(ProjectileVisualStyle.Knight);
+        projectile.SetKnightGeometryTarget(GetHeroCollider());
         projectile.Launch(
             direction,
             lockedProjectileTargetX,
@@ -510,6 +511,18 @@ public sealed class KnightController : MonoBehaviour
         );
 
         return true;
+    }
+
+    private Collider2D GetHeroCollider()
+    {
+        if (targetHero != null)
+        {
+            return targetHero.GetComponent<Collider2D>();
+        }
+
+        return target != null
+            ? target.GetComponentInParent<Collider2D>()
+            : null;
     }
 
     private void SpawnHitEffect(

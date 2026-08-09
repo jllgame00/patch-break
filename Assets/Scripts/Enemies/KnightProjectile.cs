@@ -26,6 +26,25 @@ public sealed class KnightProjectile : MonoBehaviour
         1f
     );
 
+    [Header("Knight Crescent Hit Profile")]
+    // The original Knight beam used the prefab's (1, 1) local box. With the
+    // gameplay root scale of (0.5, 0.12), that becomes only 0.50 x 0.12 world
+    // units and no longer covers the imported 1.75-unit crescent. These values
+    // are the Debugger lower-core profile scaled by 1.75 / 3.60. The Y value is
+    // relative to the Knight renderer/root: unlike Debugger, Knight does not
+    // move its visual independently to sword height.
+    [SerializeField, Min(0.01f)]
+    private Vector2 knightCrescentColliderWorldSize = new Vector2(
+        0.7291667f,
+        0.4375f
+    );
+
+    [SerializeField, Min(0f)]
+    private float knightCrescentColliderTrailingWorldOffset = 0.2722222f;
+
+    [SerializeField]
+    private float knightCrescentColliderWorldYOffset = -0.8020833f;
+
     [Header("Debugger Hit Profile")]
     // Alpha >= 0.5 across all four Debugger frames gives a stable lower
     // crescent core at source pixels X=13..53, Y=88..95. With the current
@@ -86,6 +105,7 @@ public sealed class KnightProjectile : MonoBehaviour
     private bool hasLockedTarget;
     private bool reachedLockedTarget;
     private bool resolved;
+    private bool knightCrescentHitProfileActive;
     private bool debuggerHitProfileActive;
     private bool verboseProjectileLogging;
     private System.Action resolvedCallback;
@@ -96,6 +116,9 @@ public sealed class KnightProjectile : MonoBehaviour
     private bool knightVisualFlipX;
     private Vector2 knightColliderSize;
     private Vector2 knightColliderOffset;
+    private Bounds knightGeometryHeroBounds;
+    private bool hasKnightGeometryHeroBounds;
+    private Vector2 knightColliderWorldOffset;
     private Bounds debuggerGeometryHeroBounds;
     private bool hasDebuggerGeometryHeroBounds;
     private Vector2 debuggerColliderWorldOffset;
@@ -115,6 +138,15 @@ public sealed class KnightProjectile : MonoBehaviour
     public float BeamFramesPerSecond => beamFramesPerSecond;
     public Vector3 KnightVisualLocalScale => knightVisualLocalScale;
     public Vector3 DebuggerVisualLocalScale => debuggerVisualLocalScale;
+    public Vector2 KnightCrescentColliderWorldSize =>
+        knightCrescentColliderWorldSize;
+    public float KnightCrescentColliderTrailingWorldOffset =>
+        knightCrescentColliderTrailingWorldOffset;
+    public float KnightCrescentColliderWorldYOffset =>
+        knightCrescentColliderWorldYOffset;
+    public Vector2 DebuggerColliderWorldSize => debuggerColliderWorldSize;
+    public float DebuggerColliderTrailingWorldOffset =>
+        debuggerColliderTrailingWorldOffset;
 
     private void Awake()
     {
@@ -145,6 +177,8 @@ public sealed class KnightProjectile : MonoBehaviour
     /// </summary>
     public void SetVisualStyle(ProjectileVisualStyle style)
     {
+        knightCrescentHitProfileActive =
+            style == ProjectileVisualStyle.Knight;
         debuggerHitProfileActive =
             style == ProjectileVisualStyle.Debugger;
 
@@ -222,6 +256,20 @@ public sealed class KnightProjectile : MonoBehaviour
         if (hasDebuggerGeometryHeroBounds)
         {
             debuggerGeometryHeroBounds = heroCollider.bounds;
+        }
+    }
+
+    /// <summary>
+    /// Captures the Hero's collider only for one-shot Knight launch geometry
+    /// diagnostics. It does not alter the existing Knight trajectory, target
+    /// mask, trigger path, or damage flow.
+    /// </summary>
+    public void SetKnightGeometryTarget(Collider2D heroCollider)
+    {
+        hasKnightGeometryHeroBounds = heroCollider != null;
+        if (hasKnightGeometryHeroBounds)
+        {
+            knightGeometryHeroBounds = heroCollider.bounds;
         }
     }
 
@@ -345,6 +393,21 @@ public sealed class KnightProjectile : MonoBehaviour
                 $"colliderWorldOffset={debuggerColliderWorldOffset:F2}"
             );
         }
+        else if (knightCrescentHitProfileActive)
+        {
+            Debug.Log(
+                "[KNIGHT_PROJECTILE_GEOMETRY] " +
+                $"root={transform.position:F2} " +
+                $"visualCenter={GetVisualBoundsCenter():F2} " +
+                $"visualSize={GetVisualBoundsSize():F2} " +
+                $"colliderCenter={hitCollider.bounds.center:F2} " +
+                $"colliderSize={hitCollider.bounds.size:F2} " +
+                $"heroCenter={GetKnightGeometryHeroCenter():F2} " +
+                $"heroSize={GetKnightGeometryHeroSize():F2} " +
+                $"direction={horizontalDirection:F0} " +
+                $"colliderWorldOffset={knightColliderWorldOffset:F2}"
+            );
+        }
 #endif
 
         CheckInitialOverlap();
@@ -441,6 +504,24 @@ public sealed class KnightProjectile : MonoBehaviour
 
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
         shouldLogContact |= debuggerHitProfileActive;
+        shouldLogContact |= knightCrescentHitProfileActive;
+#endif
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        if (knightCrescentHitProfileActive)
+        {
+            bool colliderOverlap = hitCollider != null &&
+                hitCollider.bounds.Intersects(other.bounds);
+            Debug.Log(
+                "[KNIGHT_PROJECTILE_HIT] " +
+                $"source={source} " +
+                $"colliderOverlap={colliderOverlap} " +
+                "target=Hero " +
+                "resolvedBefore=false " +
+                $"heroDashing={heroIsDashing} " +
+                $"damageApplied={!heroIsInvulnerable}"
+            );
+        }
 #endif
 
         if (shouldLogContact)
@@ -678,35 +759,75 @@ public sealed class KnightProjectile : MonoBehaviour
             return;
         }
 
+        if (knightCrescentHitProfileActive)
+        {
+            float knightDirection = Mathf.Approximately(
+                    horizontalDirection,
+                    0f
+                )
+                ? 1f
+                : horizontalDirection;
+
+            // Positive trailing distance always points back to the Knight.
+            // The lower-lobe Y offset is visual-relative, so the existing
+            // Knight spawn/root trajectory remains untouched.
+            knightColliderWorldOffset = new Vector2(
+                -knightDirection *
+                    knightCrescentColliderTrailingWorldOffset,
+                knightCrescentColliderWorldYOffset
+            );
+            ApplyWorldColliderProfile(
+                knightCrescentColliderWorldSize,
+                knightColliderWorldOffset
+            );
+            debuggerColliderWorldOffset = Vector2.zero;
+            return;
+        }
+
         if (!debuggerHitProfileActive)
         {
             hitCollider.size = knightColliderSize;
             hitCollider.offset = knightColliderOffset;
             debuggerColliderWorldOffset = Vector2.zero;
+            knightColliderWorldOffset = Vector2.zero;
             return;
         }
 
-        float direction = Mathf.Approximately(horizontalDirection, 0f)
+        float debuggerDirection = Mathf.Approximately(
+                horizontalDirection,
+                0f
+            )
             ? 1f
             : horizontalDirection;
 
         // Positive trailing distance is always toward the shooter. This
         // makes the contact profile symmetric for either firing direction.
         debuggerColliderWorldOffset = new Vector2(
-            -direction * debuggerColliderTrailingWorldOffset,
+            -debuggerDirection * debuggerColliderTrailingWorldOffset,
             debuggerColliderWorldYOffset
         );
 
+        ApplyWorldColliderProfile(
+            debuggerColliderWorldSize,
+            debuggerColliderWorldOffset
+        );
+        knightColliderWorldOffset = Vector2.zero;
+    }
+
+    private void ApplyWorldColliderProfile(
+        Vector2 desiredWorldSize,
+        Vector2 desiredWorldOffset)
+    {
         Vector3 lossyScale = transform.lossyScale;
         hitCollider.size = new Vector2(
-            debuggerColliderWorldSize.x /
+            desiredWorldSize.x /
                 Mathf.Max(0.0001f, Mathf.Abs(lossyScale.x)),
-            debuggerColliderWorldSize.y /
+            desiredWorldSize.y /
                 Mathf.Max(0.0001f, Mathf.Abs(lossyScale.y))
         );
 
         Vector3 localOffset = transform.InverseTransformVector(
-            debuggerColliderWorldOffset
+            desiredWorldOffset
         );
         hitCollider.offset = new Vector2(
             localOffset.x,
@@ -785,6 +906,20 @@ public sealed class KnightProjectile : MonoBehaviour
     {
         return hasDebuggerGeometryHeroBounds
             ? debuggerGeometryHeroBounds.size
+            : Vector3.zero;
+    }
+
+    private Vector3 GetKnightGeometryHeroCenter()
+    {
+        return hasKnightGeometryHeroBounds
+            ? knightGeometryHeroBounds.center
+            : Vector3.zero;
+    }
+
+    private Vector3 GetKnightGeometryHeroSize()
+    {
+        return hasKnightGeometryHeroBounds
+            ? knightGeometryHeroBounds.size
             : Vector3.zero;
     }
 }
