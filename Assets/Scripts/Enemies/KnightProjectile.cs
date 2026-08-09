@@ -351,6 +351,7 @@ public sealed class KnightProjectile : MonoBehaviour
 
         Destroy(gameObject, lifetime);
 
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
         if (verboseProjectileLogging)
         {
             Debug.Log(
@@ -361,10 +362,8 @@ public sealed class KnightProjectile : MonoBehaviour
                 $"travelEndX={travelEndX:F2} " +
                 $"collider={FormatBounds(hitCollider)}"
             );
-
         }
 
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
         if (debuggerHitProfileActive)
         {
             Debug.Log(
@@ -499,15 +498,12 @@ public sealed class KnightProjectile : MonoBehaviour
         bool heroIsInvulnerable =
             hero != null && hero.IsInvulnerable;
 
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
         bool shouldLogContact = verboseProjectileLogging ||
             (hero != null && hero.IsVerboseDashLogging);
-
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
         shouldLogContact |= debuggerHitProfileActive;
         shouldLogContact |= knightCrescentHitProfileActive;
-#endif
 
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
         if (knightCrescentHitProfileActive)
         {
             bool colliderOverlap = hitCollider != null &&
@@ -522,7 +518,6 @@ public sealed class KnightProjectile : MonoBehaviour
                 $"damageApplied={!heroIsInvulnerable}"
             );
         }
-#endif
 
         if (shouldLogContact)
         {
@@ -541,6 +536,7 @@ public sealed class KnightProjectile : MonoBehaviour
                 (heroIsInvulnerable ? "EVADED" : "HIT")
             );
         }
+#endif
 
         if (heroIsInvulnerable)
         {
@@ -606,6 +602,7 @@ public sealed class KnightProjectile : MonoBehaviour
                 body.position.y
             );
 
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
         if (verboseProjectileLogging)
         {
             Debug.Log(
@@ -617,6 +614,7 @@ public sealed class KnightProjectile : MonoBehaviour
                 "result=MISS"
             );
         }
+#endif
 
         ResolveAndDestroy("RANGE_END");
     }
@@ -636,6 +634,7 @@ public sealed class KnightProjectile : MonoBehaviour
             body.linearVelocity = Vector2.zero;
         }
 
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
         if (verboseProjectileLogging)
         {
             Debug.Log(
@@ -646,6 +645,7 @@ public sealed class KnightProjectile : MonoBehaviour
                 $"travel={GetTravelDistance():F2}"
             );
         }
+#endif
 
         NotifyResolved();
         Destroy(gameObject);
@@ -680,6 +680,7 @@ public sealed class KnightProjectile : MonoBehaviour
             LogDebuggerTravelEnd("LIFETIME_OR_EXTERNAL");
         }
 
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
         if (!resolved && verboseProjectileLogging)
         {
             Debug.Log(
@@ -690,6 +691,7 @@ public sealed class KnightProjectile : MonoBehaviour
                 $"travel={GetTravelDistance():F2}"
             );
         }
+#endif
 
         if (body != null)
         {

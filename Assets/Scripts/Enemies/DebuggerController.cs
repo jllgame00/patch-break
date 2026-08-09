@@ -1035,7 +1035,9 @@ public sealed class DebuggerController : MonoBehaviour
         HideAllTelegraphs();
         ShowGuardIndicator();
 
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
         Debug.Log("[DBG_FAKE_GUARD] bait_started");
+#endif
 
         float guardEndTime = Time.time + guardDuration;
         bool dashForwardDetected = false;
@@ -1061,13 +1063,17 @@ public sealed class DebuggerController : MonoBehaviour
 
         if (dashForwardDetected)
         {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
             Debug.Log("[DBG_FAKE_GUARD] dash_forward_detected");
             Debug.Log("[DBG_FAKE_GUARD] punish_committed");
+#endif
             yield return MeleeAttackRoutine();
             yield break;
         }
 
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
         Debug.Log("[DBG_FAKE_GUARD] bait_expired");
+#endif
         yield return RangedAttackRoutine(forced: true);
     }
 
@@ -1090,10 +1096,12 @@ public sealed class DebuggerController : MonoBehaviour
         activeAdaptationProfile = profile;
         pendingAdaptationProfile = PlayerPatternProfile.None;
 
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
         Debug.Log(
             "[DBG_ADAPT] profile=" +
             activeAdaptationProfile
         );
+#endif
     }
 
     private IEnumerator PredictiveRetreatSweepRoutine()
@@ -1197,6 +1205,7 @@ public sealed class DebuggerController : MonoBehaviour
             predictedBackDashX
         ) + predictiveDangerPadding;
 
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
         Debug.Log(
             "DEBUGGER PREDICTIVE SWEEP: TARGET LOCK\n" +
             $"heroStartX={heroStartX:F2}\n" +
@@ -1205,7 +1214,6 @@ public sealed class DebuggerController : MonoBehaviour
             $"dangerMaxX={predictiveDangerMaxX:F2}"
         );
 
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
         Debug.Log(
             "[DBG_BACKDASH_ADAPT] " +
             "phase=LOCK " +
@@ -1318,6 +1326,7 @@ public sealed class DebuggerController : MonoBehaviour
         );
 #endif
 
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
         Debug.Log(
             "DEBUGGER PREDICTIVE SWEEP: IMPACT\n" +
             $"heroX={GetTargetX():F2}\n" +
@@ -1327,6 +1336,7 @@ public sealed class DebuggerController : MonoBehaviour
             $"heroIsInvulnerable={heroIsInvulnerable}\n" +
             $"result={result}"
         );
+#endif
     }
 
     private IEnumerator AdvanceTowardHeroRoutine(
@@ -2349,12 +2359,14 @@ public sealed class DebuggerController : MonoBehaviour
         pendingAdaptationProfile = detectedProfile;
         adaptationAnalysisPending = true;
 
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
         Debug.Log(
             "[DBG_ADAPT] " +
             previousProfile +
             " -> " +
             detectedProfile
         );
+#endif
     }
 
     private void DisableCountermeasures()
