@@ -9,6 +9,7 @@ using UnityEngine.SceneManagement;
 public static class PatchBreakBackgroundScrollSetup
 {
     private const string MenuRoot = "Tools/PATCH BREAK/Background Scroll/";
+    private const string KnightMenuRoot = "Tools/PATCH BREAK/Background/";
     private const string BackgroundRootName = "Background";
 
     private static readonly SceneSpec[] SceneSpecs =
@@ -42,6 +43,18 @@ public static class PatchBreakBackgroundScrollSetup
         Debug.Log("PATCH_BREAK_BACKGROUND_SCROLL_SETUP_COMPLETE");
     }
 
+    [MenuItem(KnightMenuRoot + "Setup Knight Infinite Background")]
+    public static void SetupKnightInfiniteBackground()
+    {
+        if (!PrepareEditorOperation())
+        {
+            return;
+        }
+
+        SetupScenes(new[] { SceneSpecs[1] });
+        Debug.Log("PATCH_BREAK_KNIGHT_INFINITE_BACKGROUND_SETUP_COMPLETE");
+    }
+
     [MenuItem(MenuRoot + "Validate All Scenes")]
     public static void ValidateAllScenes()
     {
@@ -52,6 +65,18 @@ public static class PatchBreakBackgroundScrollSetup
 
         ValidateScenes(SceneSpecs);
         Debug.Log("PATCH_BREAK_BACKGROUND_SCROLL_VALIDATION_COMPLETE");
+    }
+
+    [MenuItem(KnightMenuRoot + "Validate Knight Infinite Background")]
+    public static void ValidateKnightInfiniteBackground()
+    {
+        if (!PrepareEditorOperation())
+        {
+            return;
+        }
+
+        ValidateScenes(new[] { SceneSpecs[1] });
+        Debug.Log("PATCH_BREAK_KNIGHT_INFINITE_BACKGROUND_VALIDATION_COMPLETE");
     }
 
     public static void BatchSetupAllScenes()
@@ -170,6 +195,9 @@ public static class PatchBreakBackgroundScrollSetup
             near.TileA,
             near.TileB
         );
+        parallax.ConfigureAutomaticCameraParallax(
+            sceneSpec.Name == "KnightBattle"
+        );
 
         SerializedObject sequenceObject = new(sequence);
         SerializedProperty parallaxProperty =
@@ -286,6 +314,16 @@ public static class PatchBreakBackgroundScrollSetup
                 errors.Add(
                     $"{sceneSpec.Name}: invalid parallax configuration: " +
                     configurationError
+                );
+            }
+
+            if (sceneSpec.Name == "KnightBattle" &&
+                parallaxComponents.Length == 1 &&
+                !parallaxComponents[0].AutomaticCameraParallax)
+            {
+                errors.Add(
+                    "KnightBattle: generic automatic camera parallax " +
+                    "coverage is not enabled."
                 );
             }
 
