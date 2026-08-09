@@ -51,8 +51,7 @@ public sealed class EndingScreenController : MonoBehaviour
         ),
         new(
             "LIVE PATCH COMPLETE.\n\n" +
-            "> The program survived.\n" +
-            "> Because you changed it.",
+            "> The program survived.\n",
             3.25f
         ),
         new("PATCH//BREAK", 0f)
