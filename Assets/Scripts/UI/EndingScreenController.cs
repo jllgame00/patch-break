@@ -32,7 +32,7 @@ public sealed class EndingScreenController : MonoBehaviour
         new(
             "패턴은 분석되었다.\n" +
             "행동은 예측되었다.\n" +
-            "프로그램은 완벽하게 읽혔다.",
+            "다음 명령까지 계산되었다.",
             2.65f
         ),
         new(
