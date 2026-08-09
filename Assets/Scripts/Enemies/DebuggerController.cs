@@ -224,10 +224,13 @@ public sealed class DebuggerController : MonoBehaviour
     private float nextRetreatAllowedAt;
     private bool retreatVisualActive;
     private bool retreatParallaxActive;
-    private bool backDashAnalysisPending;
     private bool backDashAdaptationEnabled;
-    private bool backDashAnalysisPlayed;
     private bool predictiveStrikeReady;
+    private bool adaptationAnalysisPending;
+    private bool adaptiveGuardReady;
+    private bool fakeGuardPunishReady;
+    private PlayerPatternProfile activeAdaptationProfile;
+    private PlayerPatternProfile pendingAdaptationProfile;
     private float nextPredictiveStrikeTime;
     private float predictiveDangerMinX;
     private float predictiveDangerMaxX;
@@ -371,7 +374,7 @@ public sealed class DebuggerController : MonoBehaviour
             return;
         }
 
-        UpdateBackDashAdaptation();
+        UpdateAdaptationProfile();
 
         if (isActing)
         {
@@ -416,11 +419,15 @@ public sealed class DebuggerController : MonoBehaviour
             return;
         }
 
-        if (backDashAnalysisPending)
+        if (adaptationAnalysisPending)
         {
             StartAction(
-                "BACK_DASH_ANALYSIS",
-                BackDashAnalysisRoutine()
+                GetAnalysisActionName(
+                    pendingAdaptationProfile
+                ),
+                AdaptationAnalysisRoutine(
+                    pendingAdaptationProfile
+                )
             );
 
             return;
@@ -485,6 +492,20 @@ public sealed class DebuggerController : MonoBehaviour
 
         if (distance <= meleeTriggerDistance)
         {
+            if (adaptiveGuardReady)
+            {
+                adaptiveGuardReady = false;
+                LogActionSelection(
+                    distance,
+                    "ADAPTIVE GUARD"
+                );
+                StartAction(
+                    "ADAPTIVE_GUARD",
+                    GuardRoutine()
+                );
+                return;
+            }
+
             closeActionCount++;
 
             bool shouldGuard =
@@ -496,18 +517,28 @@ public sealed class DebuggerController : MonoBehaviour
                 closeActionCount = 0;
             }
 
+            bool shouldFakeGuard =
+                shouldGuard &&
+                fakeGuardPunishReady;
+
             LogActionSelection(
                 distance,
-                shouldGuard
+                shouldFakeGuard
+                    ? "FAKE GUARD PUNISH"
+                    : shouldGuard
                     ? "GUARD THEN FORCED PROJECTILE"
                     : "MELEE"
             );
 
             StartAction(
-                shouldGuard
+                shouldFakeGuard
+                    ? "FAKE_GUARD_PUNISH"
+                    : shouldGuard
                     ? "GUARD_FORCED_PROJECTILE"
                     : "MELEE",
-                shouldGuard
+                shouldFakeGuard
+                    ? FakeGuardPunishRoutine()
+                    : shouldGuard
                     ? GuardRoutine()
                     : MeleeAttackRoutine()
             );
@@ -588,6 +619,7 @@ public sealed class DebuggerController : MonoBehaviour
         HideGuardIndicator();
         HideAllTelegraphs();
         ShowProjectileTelegraph();
+        PlayAttackVisual();
 
         Debug.Log(
             "DEBUGGER: PROJECTILE WINDUP"
@@ -652,7 +684,7 @@ public sealed class DebuggerController : MonoBehaviour
         if (meleeAttackPoint == null)
             return;
 
-        poseController?.PlayAttack();
+        PlayAttackVisual();
 
         Collider2D[] hits =
             Physics2D.OverlapCircleAll(
@@ -693,6 +725,13 @@ public sealed class DebuggerController : MonoBehaviour
                 ? "DEBUGGER: MELEE HIT"
                 : "DEBUGGER: MELEE MISSED"
         );
+    }
+
+    // Presentation-only reuse of the established melee swing pose. Damage
+    // remains owned exclusively by PerformMeleeAttack's overlap processing.
+    private void PlayAttackVisual()
+    {
+        poseController?.PlayAttack();
     }
 
     private bool SpawnProjectile(int attackSignalId)
@@ -767,10 +806,33 @@ public sealed class DebuggerController : MonoBehaviour
         ReleaseActionLock();
     }
 
+    private IEnumerator AdaptationAnalysisRoutine(
+        PlayerPatternProfile profile)
+    {
+        adaptationAnalysisPending = false;
+
+        switch (profile)
+        {
+            case PlayerPatternProfile.BackDashDependency:
+                yield return BackDashAnalysisRoutine();
+                yield break;
+
+            case PlayerPatternProfile.SlashDependency:
+                yield return SlashAnalysisRoutine();
+                yield break;
+
+            case PlayerPatternProfile.ForwardDashDependency:
+                yield return ForwardDashAnalysisRoutine();
+                yield break;
+
+            default:
+                FinishAction();
+                yield break;
+        }
+    }
+
     private IEnumerator BackDashAnalysisRoutine()
     {
-        backDashAnalysisPending = false;
-
         if (combatState != null)
         {
             combatState.ResetState();
@@ -804,6 +866,9 @@ public sealed class DebuggerController : MonoBehaviour
         backDashAdaptationEnabled = true;
         predictiveStrikeReady = true;
         nextPredictiveStrikeTime = Time.time;
+        ActivateAdaptationProfile(
+            PlayerPatternProfile.BackDashDependency
+        );
 
         AppendAnalysisMessage(
             "RETREAT VECTOR PREDICTION: ACTIVE"
@@ -818,6 +883,139 @@ public sealed class DebuggerController : MonoBehaviour
         yield return new WaitForSeconds(analysisEndDelay);
 
         FinishAction();
+    }
+
+    private IEnumerator SlashAnalysisRoutine()
+    {
+        PrepareForAdaptationAnalysis();
+
+        AppendAnalysisMessage(
+            "PATTERN DETECTED: REPEATED MELEE"
+        );
+
+        yield return new WaitForSeconds(analysisLineDelay);
+
+        AppendAnalysisMessage(
+            "PROFILE: SLASH_DEPENDENCY"
+        );
+
+        yield return new WaitForSeconds(analysisLineDelay);
+
+        AppendAnalysisMessage(
+            "COUNTERMEASURE: ADAPTIVE_GUARD"
+        );
+
+        yield return new WaitForSeconds(analysisLineDelay);
+
+        ActivateAdaptationProfile(
+            PlayerPatternProfile.SlashDependency
+        );
+        adaptiveGuardReady = true;
+
+        yield return new WaitForSeconds(analysisEndDelay);
+
+        FinishAction();
+    }
+
+    private IEnumerator ForwardDashAnalysisRoutine()
+    {
+        PrepareForAdaptationAnalysis();
+
+        AppendAnalysisMessage(
+            "PATTERN DETECTED: GUARD RESPONSE"
+        );
+
+        yield return new WaitForSeconds(analysisLineDelay);
+
+        AppendAnalysisMessage(
+            "PROFILE: FORWARD_DASH_DEPENDENCY"
+        );
+
+        yield return new WaitForSeconds(analysisLineDelay);
+
+        AppendAnalysisMessage(
+            "COUNTERMEASURE: FAKE_GUARD_PUNISH"
+        );
+
+        yield return new WaitForSeconds(analysisLineDelay);
+
+        ActivateAdaptationProfile(
+            PlayerPatternProfile.ForwardDashDependency
+        );
+        fakeGuardPunishReady = true;
+
+        yield return new WaitForSeconds(analysisEndDelay);
+
+        FinishAction();
+    }
+
+    private IEnumerator FakeGuardPunishRoutine()
+    {
+        InvalidateProjectileAttackSignal();
+        combatState.SetGuarding(true);
+        SetColor(guardColor);
+        HideAllTelegraphs();
+        ShowGuardIndicator();
+
+        Debug.Log("[DBG_FAKE_GUARD] bait_started");
+
+        float guardEndTime = Time.time + guardDuration;
+        bool dashForwardDetected = false;
+
+        while (Time.time < guardEndTime)
+        {
+            if (patternTracker != null &&
+                patternTracker.TryGetRecordedActionForActiveWindow(
+                    CombatObservationContext.EnemyGuarding,
+                    out HeroActionType action) &&
+                action == HeroActionType.DashForward)
+            {
+                dashForwardDetected = true;
+                break;
+            }
+
+            yield return null;
+        }
+
+        HideGuardIndicator();
+        combatState.SetGuarding(false);
+        RestoreNormalColor();
+
+        if (dashForwardDetected)
+        {
+            Debug.Log("[DBG_FAKE_GUARD] dash_forward_detected");
+            Debug.Log("[DBG_FAKE_GUARD] punish_committed");
+            yield return MeleeAttackRoutine();
+            yield break;
+        }
+
+        Debug.Log("[DBG_FAKE_GUARD] bait_expired");
+        yield return RangedAttackRoutine(forced: true);
+    }
+
+    private void PrepareForAdaptationAnalysis()
+    {
+        if (combatState != null)
+        {
+            combatState.ResetState();
+        }
+
+        StopHorizontalMovement();
+        HideAllTelegraphs();
+        HideGuardIndicator();
+        RestoreNormalColor();
+    }
+
+    private void ActivateAdaptationProfile(
+        PlayerPatternProfile profile)
+    {
+        activeAdaptationProfile = profile;
+        pendingAdaptationProfile = PlayerPatternProfile.None;
+
+        Debug.Log(
+            "[DBG_ADAPT] profile=" +
+            activeAdaptationProfile
+        );
     }
 
     private IEnumerator PredictiveRetreatSweepRoutine()
@@ -1889,7 +2087,11 @@ public sealed class DebuggerController : MonoBehaviour
         ClearProjectileTargetLock();
         InvalidateProjectileAttackSignal();
         shouldAdvanceNext = false;
-        backDashAnalysisPending = false;
+        adaptationAnalysisPending = false;
+        pendingAdaptationProfile =
+            PlayerPatternProfile.None;
+        adaptiveGuardReady = false;
+        fakeGuardPunishReady = false;
         predictiveStrikeReady = false;
 
         if (activeProjectile != null)
@@ -1910,23 +2112,79 @@ public sealed class DebuggerController : MonoBehaviour
         RestoreNormalColor();
     }
 
-    private void UpdateBackDashAdaptation()
+    private void UpdateAdaptationProfile()
     {
-        if (backDashAnalysisPlayed ||
-            patternTracker == null ||
-            patternTracker.CurrentProfile !=
-            PlayerPatternProfile.BackDashDependency)
+        if (patternTracker == null)
         {
             return;
         }
 
-        backDashAnalysisPlayed = true;
-        backDashAnalysisPending = true;
+        PlayerPatternProfile detectedProfile =
+            patternTracker.CurrentProfile;
+
+        if (detectedProfile ==
+            PlayerPatternProfile.None)
+        {
+            if (activeAdaptationProfile !=
+                    PlayerPatternProfile.None ||
+                pendingAdaptationProfile !=
+                    PlayerPatternProfile.None)
+            {
+                DisableCountermeasures();
+                activeAdaptationProfile =
+                    PlayerPatternProfile.None;
+                pendingAdaptationProfile =
+                    PlayerPatternProfile.None;
+                adaptationAnalysisPending = false;
+            }
+
+            return;
+        }
+
+        if (detectedProfile == activeAdaptationProfile ||
+            detectedProfile == pendingAdaptationProfile)
+        {
+            return;
+        }
+
+        PlayerPatternProfile previousProfile =
+            activeAdaptationProfile;
+
+        DisableCountermeasures();
+        activeAdaptationProfile =
+            PlayerPatternProfile.None;
+        pendingAdaptationProfile = detectedProfile;
+        adaptationAnalysisPending = true;
 
         Debug.Log(
-            "DEBUGGER ADAPTATION: PROFILE RECEIVED\n" +
-            "profile=BACK_DASH_DEPENDENCY"
+            "[DBG_ADAPT] " +
+            previousProfile +
+            " -> " +
+            detectedProfile
         );
+    }
+
+    private void DisableCountermeasures()
+    {
+        backDashAdaptationEnabled = false;
+        predictiveStrikeReady = false;
+        adaptiveGuardReady = false;
+        fakeGuardPunishReady = false;
+    }
+
+    private static string GetAnalysisActionName(
+        PlayerPatternProfile profile)
+    {
+        return profile switch
+        {
+            PlayerPatternProfile.BackDashDependency =>
+                "BACK_DASH_ANALYSIS",
+            PlayerPatternProfile.SlashDependency =>
+                "SLASH_ANALYSIS",
+            PlayerPatternProfile.ForwardDashDependency =>
+                "FORWARD_DASH_ANALYSIS",
+            _ => "ADAPTATION_ANALYSIS"
+        };
     }
 
     private void AppendAnalysisMessage(string message)

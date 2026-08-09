@@ -285,6 +285,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 30cc6edfc87a0aa43a805fdba3d7eb2b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::KnightProjectile
+  knightVisualLocalScale: {x: 2, y: 8.333334, z: 1}
+  debuggerVisualLocalScale: {x: -2.4, y: 10, z: 1}
   speed: 8
   lifetime: 4
   damage: 20

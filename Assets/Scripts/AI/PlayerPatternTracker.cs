@@ -13,7 +13,7 @@ public enum PlayerPatternProfile
     None,
     BackDashDependency,
     ForwardDashDependency,
-    GuardAttackDependency
+    SlashDependency
 }
 
 public sealed class PlayerPatternTracker : MonoBehaviour
@@ -28,6 +28,12 @@ public sealed class PlayerPatternTracker : MonoBehaviour
     [Header("Detection")]
     [SerializeField, Min(1)]
     private int backDashDetectionCount = 3;
+
+    [SerializeField, Min(1)]
+    private int slashDetectionCount = 3;
+
+    [SerializeField, Min(1)]
+    private int forwardDashDetectionCount = 3;
 
     [Header("Diagnostics")]
     [SerializeField]
@@ -46,6 +52,8 @@ public sealed class PlayerPatternTracker : MonoBehaviour
     private int recordedAttackWindowId = -1;
     private int recordedGuardWindowId = -1;
     private HeroActionType recordedAttackWindowAction =
+        HeroActionType.None;
+    private HeroActionType recordedGuardWindowAction =
         HeroActionType.None;
 
     public PlayerPatternProfile CurrentProfile { get; private set; }
@@ -81,6 +89,7 @@ public sealed class PlayerPatternTracker : MonoBehaviour
         if (isGuarding && !previousGuarding)
         {
             guardWindowId++;
+            recordedGuardWindowAction = HeroActionType.None;
             LogWindowOpened(
                 CombatObservationContext.EnemyGuarding,
                 guardWindowId
@@ -138,6 +147,7 @@ public sealed class PlayerPatternTracker : MonoBehaviour
         recordedAttackWindowId = -1;
         recordedGuardWindowId = -1;
         recordedAttackWindowAction = HeroActionType.None;
+        recordedGuardWindowAction = HeroActionType.None;
 
         CurrentProfile = PlayerPatternProfile.None;
 
@@ -173,17 +183,35 @@ public sealed class PlayerPatternTracker : MonoBehaviour
     {
         action = HeroActionType.None;
 
-        if (expectedContext !=
-                CombatObservationContext.EnemyAttacking ||
-            !previousAttacking ||
-            attackWindowId <= 0 ||
-            recordedAttackWindowId != attackWindowId)
+        if (expectedContext ==
+            CombatObservationContext.EnemyAttacking)
         {
-            return false;
+            if (!previousAttacking ||
+                attackWindowId <= 0 ||
+                recordedAttackWindowId != attackWindowId)
+            {
+                return false;
+            }
+
+            action = recordedAttackWindowAction;
+            return action != HeroActionType.None;
         }
 
-        action = recordedAttackWindowAction;
-        return action != HeroActionType.None;
+        if (expectedContext ==
+            CombatObservationContext.EnemyGuarding)
+        {
+            if (!previousGuarding ||
+                guardWindowId <= 0 ||
+                recordedGuardWindowId != guardWindowId)
+            {
+                return false;
+            }
+
+            action = recordedGuardWindowAction;
+            return action != HeroActionType.None;
+        }
+
+        return false;
     }
 
     private void RecordAttackReaction(
@@ -212,7 +240,7 @@ public sealed class PlayerPatternTracker : MonoBehaviour
             attackWindowId
         );
 
-        DetectBackDashDependency();
+        DetectAttackDependencies(action);
     }
 
     private void RecordGuardReaction(
@@ -228,6 +256,7 @@ public sealed class PlayerPatternTracker : MonoBehaviour
         }
 
         recordedGuardWindowId = guardWindowId;
+        recordedGuardWindowAction = action;
         AddReaction(
             guardReactions,
             action,
@@ -239,6 +268,8 @@ public sealed class PlayerPatternTracker : MonoBehaviour
             action,
             guardWindowId
         );
+
+        DetectForwardDashDependency(action);
     }
 
     private void AddReaction(
@@ -256,42 +287,88 @@ public sealed class PlayerPatternTracker : MonoBehaviour
         history.Add(action);
     }
 
-    private void DetectBackDashDependency()
+    private void DetectAttackDependencies(
+        HeroActionType action)
     {
-        if (CurrentProfile != PlayerPatternProfile.None)
+        switch (action)
+        {
+            case HeroActionType.DashBack:
+                TryActivateDependency(
+                    PlayerPatternProfile.BackDashDependency,
+                    attackReactions,
+                    HeroActionType.DashBack,
+                    backDashDetectionCount,
+                    "ATTACK WINDOWS ANALYZED"
+                );
+                break;
+
+            case HeroActionType.Slash:
+                TryActivateDependency(
+                    PlayerPatternProfile.SlashDependency,
+                    attackReactions,
+                    HeroActionType.Slash,
+                    slashDetectionCount,
+                    "ATTACK WINDOWS ANALYZED"
+                );
+                break;
+        }
+    }
+
+    private void DetectForwardDashDependency(
+        HeroActionType action)
+    {
+        if (action != HeroActionType.DashForward)
             return;
 
-        if (attackReactions.Count <
-            backDashDetectionCount)
+        TryActivateDependency(
+            PlayerPatternProfile.ForwardDashDependency,
+            guardReactions,
+            HeroActionType.DashForward,
+            forwardDashDetectionCount,
+            "GUARD WINDOWS ANALYZED"
+        );
+    }
+
+    private void TryActivateDependency(
+        PlayerPatternProfile profile,
+        List<HeroActionType> history,
+        HeroActionType expectedAction,
+        int detectionCount,
+        string windowLabel)
+    {
+        if (CurrentProfile == profile)
+            return;
+
+        if (history.Count < detectionCount)
         {
             return;
         }
 
         int firstRecentIndex =
-            attackReactions.Count -
-            backDashDetectionCount;
+            history.Count - detectionCount;
 
         for (int index = firstRecentIndex;
-             index < attackReactions.Count;
+             index < history.Count;
              index++)
         {
-            if (attackReactions[index] !=
-                HeroActionType.DashBack)
+            if (history[index] != expectedAction)
             {
                 return;
             }
         }
 
-        CurrentProfile =
-            PlayerPatternProfile.BackDashDependency;
+        CurrentProfile = profile;
+
+        // A replacement profile must be learned from new windows.  Keep the
+        // current window gate intact so its accepted action cannot count twice.
+        attackReactions.Clear();
+        guardReactions.Clear();
 
         Debug.Log(
             "PATTERN DETECTED: " +
-            "BACK_DASH_DEPENDENCY\n" +
-            "ATTACK WINDOWS ANALYZED: " +
-            $"{backDashDetectionCount}\n" +
-            "DASH_BACK REACTIONS: " +
-            backDashDetectionCount
+            $"{profile}\n" +
+            $"{windowLabel}: {detectionCount}\n" +
+            $"{expectedAction} REACTIONS: {detectionCount}"
         );
     }
 

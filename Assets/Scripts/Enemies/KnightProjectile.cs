@@ -10,6 +10,22 @@ public enum ProjectileVisualStyle
 [RequireComponent(typeof(Collider2D))]
 public sealed class KnightProjectile : MonoBehaviour
 {
+    // The prefab is shared by Knight and Debugger. These are applied only to
+    // the SpriteRenderer child, after the caller selects its visual style.
+    // The Debugger value is authored by the Editor setup from the imported
+    // frame bounds; neither value affects the root's gameplay components.
+    [SerializeField] private Vector3 knightVisualLocalScale = new Vector3(
+        2f,
+        8.333334f,
+        1f
+    );
+
+    [SerializeField] private Vector3 debuggerVisualLocalScale = new Vector3(
+        -2.4f,
+        10f,
+        1f
+    );
+
     [Header("Movement")]
     [SerializeField, Min(0.1f)]
     private float speed = 8f;
@@ -47,15 +63,30 @@ public sealed class KnightProjectile : MonoBehaviour
     private System.Action resolvedCallback;
     private bool resolutionNotified;
     private string logPrefix = "KNIGHT PROJECTILE";
+    private SpriteRenderer visualRenderer;
+    private Color knightVisualColor = Color.white;
+    private bool knightVisualFlipX;
 
     public SpriteSequencePlayer VisualSequence => visualSequence;
     public Sprite[] KnightBeamFrames => knightBeamFrames;
     public Sprite[] DebuggerBeamFrames => debuggerBeamFrames;
     public float BeamFramesPerSecond => beamFramesPerSecond;
+    public Vector3 KnightVisualLocalScale => knightVisualLocalScale;
+    public Vector3 DebuggerVisualLocalScale => debuggerVisualLocalScale;
 
     private void Awake()
     {
         body = GetComponent<Rigidbody2D>();
+        visualRenderer = visualSequence != null
+            ? visualSequence.TargetRenderer
+            : null;
+
+        if (visualRenderer != null)
+        {
+            // Preserve the shared prefab's existing Knight presentation.
+            knightVisualColor = visualRenderer.color;
+            knightVisualFlipX = visualRenderer.flipX;
+        }
     }
 
     /// <summary>
@@ -68,6 +99,33 @@ public sealed class KnightProjectile : MonoBehaviour
         Sprite[] frames = style == ProjectileVisualStyle.Debugger
             ? debuggerBeamFrames
             : knightBeamFrames;
+
+        // Keep the shared Knight presentation unchanged. The Debugger scale
+        // is calibrated from its imported sheet by the Editor setup tool.
+        // visualSequence is attached exclusively to ProjectileVisual.
+        if (visualSequence != null)
+        {
+            visualSequence.transform.localScale =
+                style == ProjectileVisualStyle.Debugger
+                    ? debuggerVisualLocalScale
+                    : knightVisualLocalScale;
+        }
+
+        if (visualRenderer != null)
+        {
+            if (style == ProjectileVisualStyle.Debugger)
+            {
+                // The direction correction is the negative child X scale
+                // above. Do not add a second SpriteRenderer flip here.
+                visualRenderer.flipX = knightVisualFlipX;
+                visualRenderer.color = Color.white;
+            }
+            else
+            {
+                visualRenderer.flipX = knightVisualFlipX;
+                visualRenderer.color = knightVisualColor;
+            }
+        }
 
         visualSequence?.PlayLoop(frames, beamFramesPerSecond);
     }
